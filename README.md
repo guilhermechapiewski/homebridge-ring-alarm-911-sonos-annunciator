@@ -39,7 +39,7 @@ When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud 
 | `refreshToken` | yes | | Ring refresh token, see [Getting a Ring refresh token](#getting-a-ring-refresh-token). Ring rotates it; the plugin keeps the latest one in Homebridge's storage folder. Paste a new one only if the plugin loses access. |
 | `rooms` | no | every room | Sonos rooms to announce in, named as in the Sonos app. |
 | `locations` | if several | the only one | Ring locations whose alarm is announced, named as in the Ring app. Required when your account has more than one location with a Ring Alarm (the plugin logs their names and waits for you to choose). |
-| `volume` | no | `70` | Volume (1-100) while announcing. |
+| `volume` | no | `100` | Volume (1-100) while announcing. Each room goes back to its own volume afterwards. |
 | `repeatIntervalSeconds` | no | `10` | From the start of one announcement to the next (minimum 5). |
 | `maxAnnounceMinutes` | no | `15` | Stop announcing after this long even if the alarm is still active. |
 | `audioPort` | no | `0` (any free port) | Port the speakers fetch the announcement from. Set it if a firewall needs a fixed port. |

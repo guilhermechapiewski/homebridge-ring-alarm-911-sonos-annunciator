@@ -8,7 +8,7 @@ export const PLATFORM_NAME = 'RingAlarmSonosAnnouncer';
 export const PLUGIN_NAME = 'homebridge-ring-alarm-911-sonos-annunciator';
 
 /** Speaker volume (1-100) while announcing. */
-export const DEFAULT_VOLUME = 70;
+export const DEFAULT_VOLUME = 100;
 
 /** Time from the start of one announcement to the start of the next. */
 export const DEFAULT_REPEAT_INTERVAL_SECONDS = 10;

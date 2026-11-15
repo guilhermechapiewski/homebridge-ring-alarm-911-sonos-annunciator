@@ -43,7 +43,7 @@
       "volume": {
         "title": "Announcement volume",
         "type": "integer",
-        "default": 70,
+        "default": 100,
         "minimum": 1,
         "maximum": 100,
         "description": "Volume (1-100) while announcing. Each speaker goes back to its own volume afterwards."

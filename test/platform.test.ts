@@ -15,7 +15,7 @@ const baseConfig: PlatformConfig = { platform: PLATFORM_NAME, refreshToken: 'con
 describe('parseConfig', () => {
   it('applies defaults', () => {
     expect(parseConfig(baseConfig)).toEqual({
-      refreshToken: 'config-token', rooms: [], locations: [], volume: 70, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
+      refreshToken: 'config-token', rooms: [], locations: [], volume: 100, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
     });
   });
 
