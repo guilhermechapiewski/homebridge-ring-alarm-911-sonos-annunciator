@@ -170,7 +170,7 @@ describe('SonosSpeakers', () => {
     await session.end();
     expect(sonos.player('Living Room')).toMatchObject({ uri: 'x-sonos-htastream:RINCON_000000000000001400:spdif', state: 'PLAYING' });
     expect(sonos.player('Den')).toMatchObject({ uri: 'x-rincon-stream:RINCON_000000000003001400', state: 'PLAYING' });
-    expect(sonos.player('Kitchen').state).toBe('STOPPED');
+    expect(sonos.player('Kitchen')).toMatchObject({ state: 'STOPPED', uri: `x-rincon-queue:${sonos.player('Kitchen').uuid}#0` });
     expect(log.info).toHaveBeenCalledWith("Kitchen: Spotify Connect can't be resumed automatically; start it again from its app");
     expect(log.info).toHaveBeenCalledWith("Office: AirPlay can't be resumed automatically; start it again from its app");
   });
@@ -233,7 +233,10 @@ describe('SonosSpeakers', () => {
     const session = await speakers().begin({ volume: 60 });
     await session.play(audio.url('test', session.localAddress));
     await session.end();
-    expect(calls('Living Room').slice(-1)).toEqual(['SetVolume 12']);
+    const uuid = sonos.player('Living Room').uuid;
+    expect(calls('Living Room').slice(-2)).toEqual(['SetVolume 12', `SetAVTransportURI x-rincon-queue:${uuid}#0`]);
+    // The clip isn't left loaded, and nothing plays.
+    expect(sonos.player('Living Room')).toMatchObject({ uri: `x-rincon-queue:${uuid}#0`, state: 'STOPPED' });
   });
 
   it('tries known speakers before searching the network, and searches when they moved', async () => {

@@ -371,6 +371,11 @@ class SonosAnnouncement implements AnnouncementSession {
       if (snapshot.uri) {
         this.log.info(`${name}: ${sourceKind(snapshot.uri)} can't be resumed automatically; start it again from its app`);
       }
+      // Don't leave the clip loaded: its server is gone once the plugin stops,
+      // so Play in the Sonos app would fail. The room's own queue is harmless
+      // (it isn't changed, just selected, and not played).
+      await control.setUri(`x-rincon-queue:${control.room.uuid}#0`, '')
+        .catch((error: Error) => this.log.debug(`${name}: unable to unload the announcement: ${error.message}`));
       return;
     }
     if (snapshot.uri.startsWith('x-rincon-queue:')) {
@@ -428,7 +433,9 @@ export interface SonosSpeakersOptions {
  *   `GetPositionInfo`, `GetVolume`, `GetMute`), never again during it.
  * - Restore: volume and mute, then the source (queue position and time,
  *   radio/TV/line-in URI), and play only if it was playing. Spotify Connect
- *   and AirPlay can't be resumed from here and are left stopped.
+ *   and AirPlay can't be resumed from here and are left stopped, as is a
+ *   room that had nothing loaded; those get their own queue selected so the
+ *   clip isn't left behind.
  */
 export class SonosSpeakers implements Speakers {
   private readonly timings: SonosTimings;
