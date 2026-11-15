@@ -38,6 +38,7 @@ When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud 
 | :--- | :--- | :--- | :--- |
 | `refreshToken` | yes | | Ring refresh token, see [Getting a Ring refresh token](#getting-a-ring-refresh-token). Ring rotates it; the plugin keeps the latest one in Homebridge's storage folder. Paste a new one only if the plugin loses access. |
 | `rooms` | no | every room | Sonos rooms to announce in, named as in the Sonos app. |
+| `locations` | if several | the only one | Ring locations whose alarm is announced, named as in the Ring app. Required when your account has more than one location with a Ring Alarm (the plugin logs their names and waits for you to choose). |
 | `volume` | no | `70` | Volume (1-100) while announcing. |
 | `repeatIntervalSeconds` | no | `10` | From the start of one announcement to the next (minimum 5). |
 | `maxAnnounceMinutes` | no | `15` | Stop announcing after this long even if the alarm is still active. |
@@ -54,6 +55,8 @@ npx -p ring-client-api ring-auth-cli
 It asks for your Ring email, password and the 2FA code, then prints a refresh token. Paste it into `refreshToken`. Use a token made just for this plugin, **not the one homebridge-ring uses**: Ring replaces the token every time it's used, so two plugins sharing one keep logging each other out. The plugin shows up in the Ring app under Control Center > Authorized Client Devices as "Homebridge Alarm Announcer".
 
 The plugin only reads the alarm state. It never arms, disarms or sounds anything.
+
+To check the token and see your alarm locations' names without Homebridge, clone this repo and run `npm install && npm run build && node scripts/ring-cli.js`.
 
 ### What happens to your music
 

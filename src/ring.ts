@@ -1,11 +1,20 @@
 import type { Logger } from 'homebridge';
 
-/** What the plugin needs from the Ring security panel. */
-export interface AlarmSnapshot {
-  /** `alarmInfo.state` (e.g. "burglar-alarm"); undefined when no alarm is active. */
-  alarmState?: string;
+/** One watched location's security panel. */
+export interface LocationState {
+  name: string;
   /** Arming mode: "none" (disarmed), "some" (home) or "all" (away). */
   mode?: string;
+  /** `alarmInfo.state` (e.g. "burglar-alarm"); undefined when no alarm is active. */
+  alarmState?: string;
+}
+
+/** What the plugin needs from the Ring security panels. */
+export interface AlarmSnapshot {
+  /** The first active alarm among the watched locations; undefined when none is. */
+  alarmState?: string;
+  /** Every watched location, in account order. */
+  locations: LocationState[];
 }
 
 export interface AlarmSourceHandlers {
@@ -26,6 +35,12 @@ export interface RingAlarmSourceOptions {
   /** Called whenever Ring hands out a new refresh token; it must be persisted. */
   onRefreshToken(token: string): void;
   log: Logger;
+  /**
+   * Location names to watch (ignoring case). Empty: the account's only
+   * alarm location; an account with several must name them. 'all' watches
+   * every one (for diagnostics).
+   */
+  locations?: string[] | 'all';
   /** Loads ring-client-api; tests pass a fake. */
   loadModule?: () => Promise<RingModule>;
   timings?: Partial<RingTimings>;
@@ -52,6 +67,7 @@ export interface RingPanelData {
 
 export interface RingLocationLike {
   readonly id: string;
+  readonly name: string;
   readonly hasAlarmBaseStation: boolean;
   readonly onConnected: ObservableLike<boolean>;
   getSecurityPanel(): Promise<{ onData: ObservableLike<RingPanelData> }>;
@@ -111,6 +127,38 @@ export const DEFAULT_RING_TIMINGS: RingTimings = {
   retryMaxMs: 600_000,
 };
 
+/** A problem only a config change can fix: reported once, not retried. */
+export class RingSetupError extends Error {}
+
+/**
+ * The alarm locations to watch. Throws `RingSetupError` when the choice
+ * can't be made: several alarm locations and none configured, or none of
+ * the configured names exist.
+ */
+export function selectLocations<T extends { name: string }>(alarmLocations: T[], wanted: string[] | 'all' | undefined, log: Logger): T[] {
+  const names = alarmLocations.map((location) => `"${location.name}"`).join(', ');
+  if (wanted === 'all') {
+    return alarmLocations;
+  }
+  if (!wanted || !wanted.length) {
+    if (alarmLocations.length > 1) {
+      throw new RingSetupError(`this Ring account has ${alarmLocations.length} locations with an alarm (${names}); `
+        + 'set "locations" in the plugin settings to the one(s) these speakers should announce');
+    }
+    return alarmLocations;
+  }
+  const lower = wanted.map((name) => name.toLowerCase());
+  const selected = alarmLocations.filter((location) => lower.includes(location.name.toLowerCase()));
+  const missing = wanted.filter((name) => !alarmLocations.some((location) => location.name.toLowerCase() === name.toLowerCase()));
+  if (!selected.length) {
+    throw new RingSetupError(`none of the configured Ring locations have an alarm (locations with one: ${names})`);
+  }
+  if (missing.length) {
+    log.warn(`Ring locations not found: ${missing.map((name) => `"${name}"`).join(', ')} (locations with an alarm: ${names})`);
+  }
+  return selected;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -120,8 +168,8 @@ function errorMessage(error: unknown): string {
  * websocket delivers the security panel's `alarmInfo` the moment it changes.
  * Only reads; never sends the panel a command.
  *
- * Watches every location on the account that has a Ring Alarm base
- * station; the alarm state reported is the first active one.
+ * Watches the configured locations (or the only one with a Ring Alarm);
+ * the alarm state reported is the first active one.
  */
 export class RingAlarmSource implements AlarmSource {
   private readonly timings: RingTimings;
@@ -131,6 +179,7 @@ export class RingAlarmSource implements AlarmSource {
   private api?: RingApiLike;
   private subscriptions: Unsubscribable[] = [];
   private states = new Map<string, RingPanelData>();
+  private names = new Map<string, string>();
   private connected = new Map<string, boolean>();
   /** Increments on every (re)build, so callbacks from an old one are ignored. */
   private generation = 0;
@@ -197,6 +246,13 @@ export class RingAlarmSource implements AlarmSource {
       if (this.stopped || generation !== this.generation) {
         return;
       }
+      if (error instanceof RingSetupError) {
+        // Retrying won't help; the settings need to change (and Homebridge to restart).
+        this.options.log.error(`Ring alarm not watched: ${error.message}`);
+        this.report(false, error.message);
+        this.teardown();
+        return;
+      }
       this.failures++;
       const delay = Math.min(this.timings.retryMaxMs, this.timings.retryMinMs * 2 ** (this.failures - 1));
       log.debug(`Ring connection attempt ${this.failures} failed: ${errorMessage(error)}; retrying in ${Math.round(delay / 1000)}s`);
@@ -207,9 +263,16 @@ export class RingAlarmSource implements AlarmSource {
   }
 
   private async watch(api: RingApiLike, generation: number): Promise<void> {
-    const locations = (await api.getLocations()).filter((location) => location.hasAlarmBaseStation);
-    if (!locations.length) {
+    const alarmLocations = (await api.getLocations()).filter((location) => location.hasAlarmBaseStation);
+    if (!alarmLocations.length) {
       throw new Error('no Ring Alarm found on this Ring account');
+    }
+    const locations = selectLocations(alarmLocations, this.options.locations, this.options.log);
+    if (generation !== this.generation) {
+      return;
+    }
+    if (this.names.size === 0) {
+      this.options.log.info(`Watching the Ring Alarm at ${locations.map((location) => `"${location.name}"`).join(', ')}`);
     }
     const panels = await Promise.all(locations.map((location) => location.getSecurityPanel()));
     if (generation !== this.generation) {
@@ -222,7 +285,9 @@ export class RingAlarmSource implements AlarmSource {
       }
     }
     this.connected.clear();
+    this.names.clear();
     locations.forEach((location, index) => {
+      this.names.set(location.id, location.name);
       this.connected.set(location.id, false);
       this.subscriptions.push(location.onConnected.subscribe((connected) => {
         if (generation === this.generation) {
@@ -250,13 +315,15 @@ export class RingAlarmSource implements AlarmSource {
   }
 
   private emit(): void {
-    let alarmState: string | undefined;
-    let mode: string | undefined;
-    for (const data of this.states.values()) {
-      alarmState = alarmState ?? (data.alarmInfo?.state || undefined);
-      mode = mode ?? data.mode;
+    const locations: LocationState[] = [];
+    for (const [id, name] of this.names) {
+      const data = this.states.get(id);
+      if (data) {
+        locations.push({ name, mode: data.mode, alarmState: data.alarmInfo?.state || undefined });
+      }
     }
-    this.handlers?.onUpdate({ alarmState, mode });
+    const active = locations.find((location) => location.alarmState);
+    this.handlers?.onUpdate({ alarmState: active?.alarmState, locations });
   }
 
   private connectionChanged(): void {

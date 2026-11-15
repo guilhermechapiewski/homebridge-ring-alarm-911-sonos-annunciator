@@ -15,13 +15,14 @@ const baseConfig: PlatformConfig = { platform: PLATFORM_NAME, refreshToken: 'con
 describe('parseConfig', () => {
   it('applies defaults', () => {
     expect(parseConfig(baseConfig)).toEqual({
-      refreshToken: 'config-token', rooms: [], volume: 70, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
+      refreshToken: 'config-token', rooms: [], locations: [], volume: 70, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
     });
   });
 
   it('trims and de-duplicates rooms (ignoring case) and raises short repeat intervals to 5 s', () => {
     expect(parseConfig({ ...baseConfig, rooms: [' Kitchen ', '', 'kitchen', 'Den'], repeatIntervalSeconds: '2', volume: '55' }))
       .toMatchObject({ rooms: ['Kitchen', 'Den'], repeatIntervalSeconds: 5, volume: 55 });
+    expect(parseConfig({ ...baseConfig, locations: [' Home ', 'home', 'Shop'] })).toMatchObject({ locations: ['Home', 'Shop'] });
   });
 
   it('reports every problem at once', () => {
@@ -33,6 +34,7 @@ describe('parseConfig', () => {
       '"audioPort" must be a whole number',
     ]);
     expect(parseConfig({ ...baseConfig, rooms: [7] })).toEqual(['"rooms" must be a list of Sonos room names']);
+    expect(parseConfig({ ...baseConfig, locations: 'Home' })).toEqual(['"locations" must be a list of Ring location names']);
   });
 });
 
@@ -112,10 +114,10 @@ describe('AnnouncerPlatform', () => {
   it('announces Ring alarms on the speakers', async () => {
     await create();
     source.handlers!.onConnection(true);
-    source.handlers!.onUpdate({ alarmState: 'burglar-alarm', mode: 'all' });
+    source.handlers!.onUpdate({ alarmState: 'burglar-alarm', locations: [] });
     await waitFor(() => speakers.plays.length >= 1);
     expect(speakers.plays[0]).toMatch(/^http:\/\/192\.0\.2\.5:\d+\/clips\/burglar\.wav$/);
-    source.handlers!.onUpdate({ mode: 'none' });
+    source.handlers!.onUpdate({ locations: [] });
     await waitFor(() => speakers.events[speakers.events.length - 1] === 'end');
     expect(log.info).toHaveBeenCalledWith('Connected to Ring');
   });
@@ -131,7 +133,7 @@ describe('AnnouncerPlatform', () => {
     (api.registerPlatformAccessories as jest.Mock).mockClear();
     await create(baseConfig, [added]);
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
-    source.handlers!.onUpdate({ alarmState: 'burglar-alarm' });
+    source.handlers!.onUpdate({ alarmState: 'burglar-alarm', locations: [] });
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(speakers.events).toEqual([]);
   });
@@ -143,6 +145,11 @@ describe('AnnouncerPlatform', () => {
     await waitFor(() => speakers.events.includes('end'));
     await waitFor(() => test.value === false);
     expect(speakers.plays[0]).toMatch(/\/clips\/test\.wav$/);
+  });
+
+  it('passes the configured Ring locations on', async () => {
+    await create({ ...baseConfig, locations: ['Home'] });
+    expect(source.options!.locations).toEqual(['Home']);
   });
 
   it('saves rotated Ring tokens and uses them on the next start', async () => {
@@ -166,7 +173,7 @@ describe('AnnouncerPlatform', () => {
     expect(log.warn).toHaveBeenCalledWith('Not connected to Ring (socket closed); alarms can\'t be announced until it reconnects');
     expect(log.info).toHaveBeenCalledWith('Reconnected to Ring');
 
-    source.handlers!.onUpdate({ alarmState: 'flood-alarm' });
+    source.handlers!.onUpdate({ alarmState: 'flood-alarm', locations: [] });
     expect(log.warn).toHaveBeenCalledWith('Unknown Ring alarm state "flood-alarm"; using the generic announcement');
   });
 

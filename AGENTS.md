@@ -59,7 +59,7 @@ This plugin needs **Node 20.18.1 or newer**. Older HOOBS installs (seen in the w
 - `src/announcer.ts`: the announcement loop. One loop handles alarms and tests; it re-checks state between rounds, so escalation (burglar → fire), clearing, the enabled switch and shutdown all take effect immediately, even mid-clip.
 - `src/audioServer.ts`: tiny HTTP server the speakers fetch clips from (`/clips/<name>.wav`, known names only, Range support).
 - `src/tokenStore.ts`: persists Ring's rotated refresh token in Homebridge's storage dir.
-- `src/ring.ts`: `AlarmSource` interface and `RingAlarmSource`: loads ring-client-api, watches every location with an alarm base station (`location.getSecurityPanel().onData` → `alarmInfo.state`), saves rotated tokens, and rebuilds the connection when ring-client-api gives up.
+- `src/ring.ts`: `AlarmSource` interface and `RingAlarmSource`: loads ring-client-api, picks the alarm locations to watch (`selectLocations`: the only one, or the configured `locations`; several without a choice is a `RingSetupError`, logged once and not retried) (`location.getSecurityPanel().onData` → `alarmInfo.state`), saves rotated tokens, and rebuilds the connection when ring-client-api gives up.
 - `src/upnp.ts`: SOAP client (`soapCall`, reports `localAddress` from the socket), UPnP faults (`UpnpError`), and the minimal XML helpers.
 - `src/sonosDiscovery.ts`: SSDP search for ZonePlayers, one per IPv4 interface, resent if nothing answers.
 - `src/sonos.ts`: `Speakers` / `AnnouncementSession` interfaces, topology parsing, `RoomControl` (one room's SOAP calls, snapshot, `playClip`), and `SonosSpeakers` (the session: prepare, play, restore).
@@ -82,12 +82,14 @@ This plugin needs **Node 20.18.1 or newer**. Older HOOBS installs (seen in the w
 
 - Token: from `ring-auth-cli`. It's base64 JSON `{ rt, hid }`: the refresh token **and the hardware id**, so the Control Center device stays the same across restarts without us storing anything else. Every refresh emits `onRefreshTokenUpdated` with a new token, which `TokenStore` persists. The token must not be shared with homebridge-ring (each rotation invalidates the other's).
 - `controlCenterDisplayName` is "Homebridge Alarm Announcer".
+- Accounts can have several locations with an alarm (a home and a business, say), but the speakers are in one place, so the plugin never guesses: with more than one, `locations` is required. The snapshot carries each watched location's mode and alarm state; `alarmState` is the first active one.
 - `api.getLocations()` fetches devices and also registers an FCM push receiver (for camera events). That's ring-client-api's normal behavior, the same as homebridge-ring; it doesn't send the alarm any command.
 - `location.getSecurityPanel()` opens the realtime websocket and waits for the device list; `panel.onData` (a BehaviorSubject) emits every update; `location.onConnected` tracks the socket.
 - **Reconnect gap in ring-client-api:** on close it waits 1 s and calls `createConnection()` once; if that throws before the socket opens (ticket request fails, e.g. internet down), nothing retries. `RingAlarmSource` therefore rebuilds the whole `RingApi` after `stuckDisconnectedMs` (2 min) down, and retries failed attempts with backoff (15 s doubling to 10 min). Each attempt has a 60 s timeout, since `getSecurityPanel` waits forever if the socket never opens.
 - Logging: `useLogger` is global to the process. Its info goes to Homebridge debug, its errors to warnings. It logs the Ring location name at info level (debug for us); fine in the user's own log, but never paste real logs into the repo.
 - Never call `setAlarmMode`, `disarm`, `arm*`, `soundSiren`, `silenceSiren`, `triggerBurglarAlarm`, `triggerFireAlarm`, `sendCommandToSecurityPanel`, or location-mode setters.
 - 2FA: Ring limits codes to 10 per 10 min.
+- **Push-notification noise:** on alarm events, `@eneris/push-receiver` (camera/doorbell pushes only) can fail to decrypt with `ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY` and prints the stack with `console.error` itself (its emitter catches listener errors). Harmless to alarm detection, which arrives on the websocket (`DataUpdate DeviceInfoDocType` for `security-panel`). Root cause not found yet.
 
 ## Sonos
 

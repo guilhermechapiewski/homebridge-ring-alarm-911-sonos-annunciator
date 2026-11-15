@@ -22,6 +22,8 @@ export interface AnnouncerPlatformConfig {
   refreshToken: string;
   /** Sonos room names; empty means every room. */
   rooms: string[];
+  /** Ring location names to watch; empty means the only one (required if there are several). */
+  locations: string[];
   volume: number;
   repeatIntervalSeconds: number;
   maxAnnounceMinutes: number;
@@ -58,6 +60,27 @@ function readNumber(
   return value;
 }
 
+/** A list of names: trimmed, blanks dropped, de-duplicated ignoring case. */
+function readNames(config: PlatformConfig, key: string, what: string, errors: string[]): string[] {
+  const value = config[key];
+  const names: string[] = [];
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry !== 'string') {
+        errors.push(`"${key}" must be a list of ${what}`);
+        return names;
+      }
+      const name = entry.trim();
+      if (name && !names.some((known) => known.toLowerCase() === name.toLowerCase())) {
+        names.push(name);
+      }
+    }
+  } else if (value !== undefined && value !== null && value !== '') {
+    errors.push(`"${key}" must be a list of ${what}`);
+  }
+  return names;
+}
+
 /** Validates the raw Homebridge config, returning a list of problems if invalid. */
 export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | string[] {
   const errors: string[] = [];
@@ -67,21 +90,8 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
     errors.push('"refreshToken" is required (see the README for how to get one)');
   }
 
-  const rooms: string[] = [];
-  if (Array.isArray(config.rooms)) {
-    for (const entry of config.rooms) {
-      if (typeof entry !== 'string') {
-        errors.push('"rooms" must be a list of Sonos room names');
-        continue;
-      }
-      const room = entry.trim();
-      if (room && !rooms.some((known) => known.toLowerCase() === room.toLowerCase())) {
-        rooms.push(room);
-      }
-    }
-  } else if (config.rooms !== undefined && config.rooms !== null && config.rooms !== '') {
-    errors.push('"rooms" must be a list of Sonos room names');
-  }
+  const rooms = readNames(config, 'rooms', 'Sonos room names', errors);
+  const locations = readNames(config, 'locations', 'Ring location names', errors);
 
   const volume = Math.round(readNumber(config, 'volume', DEFAULT_VOLUME, 1, 100, errors, 'a number from 1 to 100'));
   const repeatIntervalSeconds = Math.max(MIN_REPEAT_INTERVAL_SECONDS, readNumber(
@@ -93,7 +103,7 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
     errors.push('"audioPort" must be a whole number');
   }
 
-  return errors.length ? errors : { refreshToken, rooms, volume, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
+  return errors.length ? errors : { refreshToken, rooms, locations, volume, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
 }
 
 /**
@@ -188,6 +198,7 @@ export class AnnouncerPlatform implements DynamicPlatformPlugin {
         }
       },
       log: this.log,
+      locations: settings.locations,
     });
     this.alarmSource.start({
       onUpdate: (snapshot) => {

@@ -1,4 +1,5 @@
 import {
+  AlarmSnapshot,
   CONTROL_CENTER_NAME,
   ObservableLike,
   RingAlarmSource,
@@ -37,7 +38,10 @@ class FakeLocation implements RingLocationLike {
   panelError?: Error;
   /** Never resolves (the websocket never comes up). */
   hang = false;
-  constructor(readonly id: string, readonly hasAlarmBaseStation = true) {}
+  readonly id: string;
+  constructor(readonly name: string, readonly hasAlarmBaseStation = true) {
+    this.id = `id-${name}`;
+  }
   getSecurityPanel() {
     if (this.hang) {
       return new Promise<never>(() => undefined);
@@ -79,7 +83,8 @@ class FakeRing implements RingModule {
 describe('RingAlarmSource', () => {
   let ring: FakeRing;
   let log: ReturnType<typeof makeLogger>;
-  let updates: Array<{ alarmState?: string; mode?: string }>;
+  let updates: AlarmSnapshot[];
+  let wanted: string[] | 'all' | undefined;
   let connections: Array<[boolean, string | undefined]>;
   let tokens: string[];
   let source: RingAlarmSource | undefined;
@@ -89,6 +94,7 @@ describe('RingAlarmSource', () => {
       refreshToken: 'token-1',
       onRefreshToken: (token) => tokens.push(token),
       log,
+      locations: wanted,
       loadModule,
       timings: { connectTimeoutMs: 200, stuckDisconnectedMs: 100, retryMinMs: 20, retryMaxMs: 80, ...timings },
     });
@@ -105,6 +111,7 @@ describe('RingAlarmSource', () => {
     ring = new FakeRing();
     log = makeLogger();
     updates = [];
+    wanted = undefined;
     connections = [];
     tokens = [];
   });
@@ -114,17 +121,19 @@ describe('RingAlarmSource', () => {
     start();
     await waitFor(() => updates.length > 0);
     expect(ring.api.options).toEqual({ refreshToken: 'token-1', controlCenterDisplayName: CONTROL_CENTER_NAME });
-    expect(lastUpdate()).toEqual({ alarmState: undefined, mode: 'none' });
+    expect(lastUpdate()).toEqual({ alarmState: undefined, locations: [{ name: 'loc-1', mode: 'none', alarmState: undefined }] });
     expect(lastConnection()).toEqual([true, undefined]);
+    expect(log.info).toHaveBeenCalledWith('Watching the Ring Alarm at "loc-1"');
 
     ring.locations[0].panel.onData.next({ mode: 'all', alarmInfo: { state: 'burglar-alarm' } });
-    expect(lastUpdate()).toEqual({ alarmState: 'burglar-alarm', mode: 'all' });
+    expect(lastUpdate()).toEqual({ alarmState: 'burglar-alarm', locations: [{ name: 'loc-1', mode: 'all', alarmState: 'burglar-alarm' }] });
     ring.locations[0].panel.onData.next({ mode: 'none', alarmInfo: null });
-    expect(lastUpdate()).toEqual({ alarmState: undefined, mode: 'none' });
+    expect(lastUpdate().alarmState).toBeUndefined();
   });
 
   it('reports the connection only when it goes up or down', async () => {
     ring.locations = [new FakeLocation('home'), new FakeLocation('cabin')];
+    wanted = 'all';
     start();
     await waitFor(() => updates.length >= 2);
     expect(connections).toEqual([[true, undefined]]);
@@ -153,13 +162,17 @@ describe('RingAlarmSource', () => {
     expect(ring.api.options.refreshToken).toBe('token-2');
   });
 
-  it('only watches locations with an alarm, and reports the first active alarm', async () => {
+  it('only watches locations with an alarm, and reports each one plus the first active alarm', async () => {
     ring.locations = [new FakeLocation('cams-only', false), new FakeLocation('home'), new FakeLocation('cabin')];
+    wanted = ['Home', 'CABIN'];
     start();
     await waitFor(() => updates.length >= 2);
     expect(ring.locations[0].panel.onData.observers).toBe(0);
     ring.locations[2].panel.onData.next({ mode: 'all', alarmInfo: { state: 'fire-alarm' } });
-    expect(lastUpdate().alarmState).toBe('fire-alarm');
+    expect(lastUpdate()).toEqual({
+      alarmState: 'fire-alarm',
+      locations: [{ name: 'home', mode: 'none', alarmState: undefined }, { name: 'cabin', mode: 'all', alarmState: 'fire-alarm' }],
+    });
 
     // Connected only while every watched location is.
     ring.locations[1].onConnected.next(false);
@@ -177,7 +190,40 @@ describe('RingAlarmSource', () => {
 
     ring.locationsError = undefined;
     await waitFor(() => lastConnection()[0] === true, 3000);
-    expect(lastUpdate()).toEqual({ alarmState: undefined, mode: 'none' });
+    expect(lastUpdate().locations).toEqual([{ name: 'loc-1', mode: 'none', alarmState: undefined }]);
+  });
+
+  it('requires a choice when the account has several alarm locations, and does not retry', async () => {
+    ring.locations = [new FakeLocation('Home'), new FakeLocation('Shop'), new FakeLocation('cams-only', false)];
+    start();
+    await waitFor(() => connections.length > 0);
+    const message = 'this Ring account has 2 locations with an alarm ("Home", "Shop"); '
+      + 'set "locations" in the plugin settings to the one(s) these speakers should announce';
+    expect(connections).toEqual([[false, message]]);
+    expect(log.error).toHaveBeenCalledWith(`Ring alarm not watched: ${message}`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(ring.apis).toHaveLength(1);
+    expect(ring.api.disconnected).toBe(true);
+  });
+
+  it('watches only the configured location, and warns about names that do not exist', async () => {
+    ring.locations = [new FakeLocation('Home'), new FakeLocation('Shop')];
+    wanted = ['home', 'Cabin'];
+    start();
+    await waitFor(() => updates.length > 0);
+    expect(log.warn).toHaveBeenCalledWith('Ring locations not found: "Cabin" (locations with an alarm: "Home", "Shop")');
+    expect(ring.locations[1].panel.onData.observers).toBe(0);
+    ring.locations[1].panel.onData.next({ alarmInfo: { state: 'burglar-alarm' } });
+    expect(lastUpdate().alarmState).toBeUndefined();
+  });
+
+  it('fails without retrying when no configured location exists', async () => {
+    wanted = ['Cabin'];
+    start();
+    await waitFor(() => connections.length > 0);
+    expect(connections).toEqual([[false, 'none of the configured Ring locations have an alarm (locations with one: "loc-1")']]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(ring.apis).toHaveLength(1);
   });
 
   it('fails when the account has no Ring Alarm', async () => {

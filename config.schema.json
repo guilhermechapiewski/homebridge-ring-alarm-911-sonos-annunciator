@@ -30,6 +30,16 @@
           "placeholder": "Living Room"
         }
       },
+      "locations": {
+        "title": "Ring locations",
+        "type": "array",
+        "description": "Ring locations whose alarm should be announced, named as in the Ring app. Leave empty if your account has only one location with an alarm; required if it has several.",
+        "items": {
+          "title": "Location",
+          "type": "string",
+          "placeholder": "Home"
+        }
+      },
       "volume": {
         "title": "Announcement volume",
         "type": "integer",
@@ -71,6 +81,14 @@
       "buttonText": "Add room",
       "items": [
         "rooms[]"
+      ]
+    },
+    {
+      "key": "locations",
+      "type": "array",
+      "buttonText": "Add location",
+      "items": [
+        "locations[]"
       ]
     },
     "volume",
