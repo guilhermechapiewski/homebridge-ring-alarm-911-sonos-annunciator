@@ -42,6 +42,7 @@
     "lint": "eslint --max-warnings=0 src test scripts",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:e2e": "npm run build && tsc -p tsconfig.json --outDir .e2e-build --sourceMap false && node test/e2e/run-e2e.js",
     "prepublishOnly": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {

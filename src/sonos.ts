@@ -412,6 +412,12 @@ export interface SonosSpeakersOptions {
   /** Room names to use; empty means every room. */
   rooms: string[];
   log: Logger;
+  /**
+   * Speakers to ask for the rooms instead of searching the network, for
+   * networks where SSDP doesn't get through (Docker, VLANs). One reachable
+   * speaker is enough. When set, the network is never searched.
+   */
+  addresses?: Array<{ address: string; port: number }>;
   /** Overrides for the SSDP search; tests point it at a local responder. */
   discovery?: Partial<PlayerDiscoveryOptions>;
   timings?: Partial<SonosTimings>;
@@ -484,6 +490,21 @@ export class SonosSpeakers implements Speakers {
       } catch {
         // Moved or offline; try the next one, then search.
       }
+    }
+    const configured = this.options.addresses ?? [];
+    if (configured.length) {
+      let lastError: Error | undefined;
+      for (const player of configured) {
+        try {
+          const found = await this.topology([player]);
+          this.remember(found.rooms);
+          return found;
+        } catch (error) {
+          lastError = error as Error;
+        }
+      }
+      throw new Error(`none of the configured speaker addresses answered (${configured.map((p) => `${p.address}:${p.port}`).join(', ')}): `
+        + `${lastError?.message}`);
     }
     const players = await discoverPlayers({ listenMs: 3000, settleMs: 500, ...this.options.discovery });
     if (!players.length) {

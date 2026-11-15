@@ -40,6 +40,16 @@
           "placeholder": "Home"
         }
       },
+      "speakerAddresses": {
+        "title": "Sonos speaker addresses",
+        "type": "array",
+        "description": "Only if the speakers aren't found automatically (e.g. Homebridge in Docker, or speakers on another VLAN): the IP address of one or more Sonos speakers, optionally with :port. One reachable speaker is enough; the other rooms are found through it. When set, the network isn't searched.",
+        "items": {
+          "title": "Address",
+          "type": "string",
+          "placeholder": "192.0.2.20"
+        }
+      },
       "volume": {
         "title": "Announcement volume",
         "type": "integer",
@@ -99,7 +109,15 @@
       "items": [
         "repeatIntervalSeconds",
         "maxAnnounceMinutes",
-        "audioPort"
+        "audioPort",
+        {
+          "key": "speakerAddresses",
+          "type": "array",
+          "buttonText": "Add speaker address",
+          "items": [
+            "speakerAddresses[]"
+          ]
+        }
       ]
     }
   ]

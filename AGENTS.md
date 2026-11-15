@@ -28,6 +28,7 @@ In Apple Home it shows one accessory, "Alarm Announcer", with two switches: **Al
 npm run lint        # ESLint, zero warnings allowed (src, test, scripts)
 npm run typecheck
 npm test            # Jest unit tests: real local HTTP servers + real HAP objects from homebridge
+npm run test:e2e    # builds, then real Homebridge vs a fake Ring module + fake Sonos (~1 min)
 npm run build       # tsc -> dist/ (CommonJS, ES2020)
 
 # Regenerate the announcement clips (macOS only; needs a build). See "Open decisions" about licensing.
@@ -42,7 +43,9 @@ node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30]   # PLA
 node scripts/ring-cli.js [seconds, default 30 | --watch]
 ```
 
-Not yet built: an e2e (`test/e2e/`, real Homebridge against a mock Ring websocket + mock Sonos; `test/fakeSonos.ts` is the Sonos half). No token script is needed: `npx -p ring-client-api ring-auth-cli` does the 2FA login. Follow the sibling repos' e2e pattern (insecure HAP HTTP API, `E2E_PLUGIN_PATH` for the packed tarball, `HOMEBRIDGE_BIN`), with the matrix Homebridge 1.8.x on Node 20.18.1 (the minimum Node) and 2.x on Node 22.
+The e2e (`test/e2e/run-e2e.js`) runs a real Homebridge process and drives the switches over the insecure HAP HTTP API, like the sibling repos. Ring is replaced by `test/e2e/fakeRing.mjs`, loaded through `RING_ALARM_ANNOUNCER_RING_MODULE` (test-only; the plugin warns when it's set) and driven by a JSON state file. Sonos is `test/fakeSonos.ts` (compiled into `.e2e-build/` by `test:e2e`), reached through `speakerAddresses`, which turns off the network search, so the e2e can't touch real devices. Fake clips "play" for 1.5 s: the plugin polls every 300 ms and needs to see PLAYING, and the real clips are 1.1–3.9 s.
+
+Before releasing, run it against the packed artifact (`npm pack`, extract, `E2E_PLUGIN_PATH=<extracted>/package node test/e2e/run-e2e.js`; catches files missing from `files`) and across the matrix: Homebridge 1.8.x on Node 20.18.1 (the minimum) and 2.x on Node 22. Install those into a scratch directory (`npm install homebridge@<v>`), then `HOMEBRIDGE_BIN=<dir>/node_modules/homebridge/bin/homebridge npx -y node@<v> test/e2e/run-e2e.js`. No token script is needed: `npx -p ring-client-api ring-auth-cli` does the 2FA login.
 
 ## Compatibility constraints (HOOBS)
 
@@ -63,7 +66,8 @@ This plugin needs **Node 20.18.1 or newer**. Older HOOBS installs (seen in the w
 - `src/upnp.ts`: SOAP client (`soapCall`, reports `localAddress` from the socket), UPnP faults (`UpnpError`), and the minimal XML helpers.
 - `src/sonosDiscovery.ts`: SSDP search for ZonePlayers, one per IPv4 interface, resent if nothing answers.
 - `src/sonos.ts`: `Speakers` / `AnnouncementSession` interfaces, topology parsing, `RoomControl` (one room's SOAP calls, snapshot, `playClip`), and `SonosSpeakers` (the session: prepare, play, restore).
-- `test/fakeSonos.ts`: a pretend Sonos system (one HTTP server per speaker + SSDP responder) that really fetches the clip URLs.
+- `test/fakeSonos.ts`: a pretend Sonos system (one HTTP server per speaker + SSDP responder) that really fetches the clip URLs. Used by the unit tests and the e2e.
+- `test/e2e/`: `run-e2e.js` (the runner) and `fakeRing.mjs` (stands in for ring-client-api).
 - `src/platform.ts`: config parsing, wiring, the accessory and its two switches.
 - `audio/*.wav`: the clips (22.05 kHz 16-bit mono WAV, ~50–180 KB each), shipped in the package.
 
@@ -117,4 +121,5 @@ Real-system quirks seen so far:
 - 2026-11-14: scaffold. Config, alarm-state mapping, announcement loop, clip server, token store, platform and switches are done with unit tests (57) green on Node 26 / Homebridge 1.11. Ring and Sonos clients are stubs (the plugin logs that it's not implemented). Not yet: e2e, version-matrix runs, real-device checks.
 - 2026-11-14: Sonos client: SSDP discovery, topology, per-room snapshot / announce / restore, `scripts/sonos-cli.js`. Unit tests (88) green against `test/fakeSonos.ts`. Real system: `discover`, `rooms` and `state` checked read-only against a real system. Real announcements played and restored: a standalone room with nothing loaded (which found the clip-left-loaded issue above); a group member (left the group, rejoined it, the leader kept playing Spotify Connect throughout); and a group leader playing a queue (the whole group heard it, then resumed the same track at the interrupted position).
 - 2026-11-14: Ring client on ring-client-api 14.3 instead of our own; engines bumped to Node >=20.18.1. Unit tests with fakes; the ESM loader works from `dist/` on Node 26 and 20.18.1, and the unit tests pass on 20.18.1 too. A real read-only connection (`scripts/ring-cli.js`) connected, read the panel mode and saved the rotated token. **Not yet:** a real alarm state change seen live.
-- **Next:** the e2e and a test install on HOOBS; decide the clip voice licensing before publishing.
+- 2026-11-14: e2e green (13 scenarios: alarm, repeat, escalation, restore, entry delay, both switches, Ring disconnect, restart with remembered switch and rotated token) on Homebridge 1.11.4 / Node 26, 1.8.5 / Node 20.18.1 and 2.5.0 / Node 22, and against the packed tarball. Added `speakerAddresses` (skip SSDP; for Docker/VLAN setups, and what keeps the e2e off real speakers). The e2e found that the initial connection was logged as lost-then-reconnected; fixed.
+- **Next:** decide the clip voice licensing; then publish and a test install on HOOBS.

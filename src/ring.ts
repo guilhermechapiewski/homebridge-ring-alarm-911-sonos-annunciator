@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'url';
+
 import type { Logger } from 'homebridge';
 
 /** One watched location's security panel. */
@@ -97,7 +99,18 @@ export const CONTROL_CENTER_NAME = 'Homebridge Alarm Announcer';
 // require(), so hide the import() from it.
 const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<Record<string, unknown>>;
 
+/**
+ * For the end-to-end test only: a module path to load instead of
+ * ring-client-api. It must export `createApi` and `useLogger` (a `RingModule`).
+ */
+export const RING_MODULE_OVERRIDE_ENV = 'RING_ALARM_ANNOUNCER_RING_MODULE';
+
 export async function loadRingClientApi(): Promise<RingModule> {
+  const override = process.env[RING_MODULE_OVERRIDE_ENV];
+  if (override) {
+    const fake = await dynamicImport(pathToFileURL(override).href);
+    return fake as unknown as RingModule;
+  }
   const [main, util] = await Promise.all([dynamicImport('ring-client-api'), dynamicImport('ring-client-api/util')]);
   const RingApi = main.RingApi as new (options: object) => RingApiLike;
   return {
@@ -223,6 +236,9 @@ export class RingAlarmSource implements AlarmSource {
           this.report(false, 'ring-client-api could not be loaded');
           return;
         }
+        if (!this.options.loadModule && process.env[RING_MODULE_OVERRIDE_ENV]) {
+          log.warn(`Not talking to Ring: using the test module from ${RING_MODULE_OVERRIDE_ENV}`);
+        }
         // Its own chatter goes to the debug log; its errors are worth seeing.
         this.module.useLogger({
           logInfo: (...message) => log.debug(`[ring] ${message.map(String).join(' ')}`),
@@ -328,7 +344,10 @@ export class RingAlarmSource implements AlarmSource {
 
   private connectionChanged(): void {
     const up = this.connected.size > 0 && [...this.connected.values()].every(Boolean);
-    this.report(up, 'realtime connection lost; ring-client-api is reconnecting');
+    // Not up yet at the very start isn't news; it's only reported if it stays that way.
+    if (up || this.reported !== undefined) {
+      this.report(up, 'realtime connection lost; ring-client-api is reconnecting');
+    }
     if (up) {
       clearTimeout(this.stuckTimer as NodeJS.Timeout);
       this.stuckTimer = undefined;
@@ -336,6 +355,7 @@ export class RingAlarmSource implements AlarmSource {
       this.stuckTimer = setTimeout(() => {
         this.stuckTimer = undefined;
         this.options.log.debug('Ring has been disconnected for a while; starting a new connection');
+        this.report(false, `the realtime connection didn't come up within ${Math.ceil(this.timings.stuckDisconnectedMs / 1000)}s; retrying`);
         this.teardown();
         void this.connect();
       }, this.timings.stuckDisconnectedMs);

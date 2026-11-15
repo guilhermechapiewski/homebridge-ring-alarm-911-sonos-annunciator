@@ -14,6 +14,7 @@ import {
   MIN_REPEAT_INTERVAL_SECONDS,
   PLATFORM_NAME,
   PLUGIN_NAME,
+  SONOS_PORT,
   TOKEN_STORE_FILE,
 } from './settings';
 import { TokenStore } from './tokenStore';
@@ -24,6 +25,8 @@ export interface AnnouncerPlatformConfig {
   rooms: string[];
   /** Ring location names to watch; empty means the only one (required if there are several). */
   locations: string[];
+  /** Sonos speakers to ask for the rooms instead of searching the network; empty means search. */
+  speakerAddresses: Array<{ address: string; port: number }>;
   volume: number;
   repeatIntervalSeconds: number;
   maxAnnounceMinutes: number;
@@ -38,7 +41,7 @@ export interface AnnouncerAccessoryContext {
 
 export interface PlatformDeps {
   createAlarmSource?: (options: RingAlarmSourceOptions) => AlarmSource;
-  createSpeakers?: (rooms: string[]) => Speakers;
+  createSpeakers?: (settings: AnnouncerPlatformConfig) => Speakers;
   /** Where the clips are; defaults to the package's `audio` directory. */
   audioDirectory?: string;
   /** Defaults to Homebridge's storage path. */
@@ -92,6 +95,16 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
 
   const rooms = readNames(config, 'rooms', 'Sonos room names', errors);
   const locations = readNames(config, 'locations', 'Ring location names', errors);
+  const speakerAddresses: Array<{ address: string; port: number }> = [];
+  for (const entry of readNames(config, 'speakerAddresses', 'speaker IP addresses', errors)) {
+    const match = /^([A-Za-z0-9.-]+)(?::(\d{1,5}))?$/.exec(entry);
+    const port = match?.[2] ? Number(match[2]) : SONOS_PORT;
+    if (!match || port < 1 || port > 65535) {
+      errors.push(`"speakerAddresses" entry "${entry}" must be an IP address or host name, optionally with :port`);
+      continue;
+    }
+    speakerAddresses.push({ address: match[1], port });
+  }
 
   const volume = Math.round(readNumber(config, 'volume', DEFAULT_VOLUME, 1, 100, errors, 'a number from 1 to 100'));
   const repeatIntervalSeconds = Math.max(MIN_REPEAT_INTERVAL_SECONDS, readNumber(
@@ -103,7 +116,7 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
     errors.push('"audioPort" must be a whole number');
   }
 
-  return errors.length ? errors : { refreshToken, rooms, locations, volume, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
+  return errors.length ? errors : { refreshToken, rooms, locations, speakerAddresses, volume, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
 }
 
 /**
@@ -170,7 +183,7 @@ export class AnnouncerPlatform implements DynamicPlatformPlugin {
     }
     this.audioServer = audioServer;
 
-    const speakers = (this.deps.createSpeakers ?? ((rooms) => new SonosSpeakers({ rooms, log: this.log })))(settings.rooms);
+    const speakers = (this.deps.createSpeakers ?? ((s) => new SonosSpeakers({ rooms: s.rooms, addresses: s.speakerAddresses, log: this.log })))(settings);
     speakers.warmUp?.().catch((error: Error) => this.log.warn(`Unable to find the Sonos speakers yet: ${error.message}`));
     this.announcer = new Announcer({
       speakers,

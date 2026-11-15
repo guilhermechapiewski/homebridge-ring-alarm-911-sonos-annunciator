@@ -42,6 +42,7 @@ When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud 
 | `volume` | no | `100` | Volume (1-100) while announcing. Each room goes back to its own volume afterwards. |
 | `repeatIntervalSeconds` | no | `10` | From the start of one announcement to the next (minimum 5). |
 | `maxAnnounceMinutes` | no | `15` | Stop announcing after this long even if the alarm is still active. |
+| `speakerAddresses` | no | search the network | Only if the speakers aren't found automatically (Homebridge in Docker, speakers on another VLAN): IP addresses of one or more speakers, optionally with `:port`. One reachable speaker is enough. When set, the network isn't searched. |
 | `audioPort` | no | `0` (any free port) | Port the speakers fetch the announcement from. Set it if a firewall needs a fixed port. |
 
 ### Getting a Ring refresh token
@@ -67,6 +68,7 @@ Each room is announced in on its own, so a speaker that's asleep or offline does
 ```bash
 npm install
 npm run lint && npm run typecheck && npm test
+npm run test:e2e   # real Homebridge against a fake Ring and fake Sonos speakers
 npm run build
 ```
 

@@ -7,6 +7,9 @@ export const PLATFORM_NAME = 'RingAlarmSonosAnnouncer';
 /** Must match the `name` in package.json. */
 export const PLUGIN_NAME = 'homebridge-ring-alarm-911-sonos-annunciator';
 
+/** Port of the speakers' UPnP services. */
+export const SONOS_PORT = 1400;
+
 /** Speaker volume (1-100) while announcing. */
 export const DEFAULT_VOLUME = 100;
 

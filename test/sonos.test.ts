@@ -255,6 +255,21 @@ describe('SonosSpeakers', () => {
     expect(sonos.searches).toBeGreaterThan(searches);
   });
 
+  it('asks the configured speakers instead of searching the network, and never searches', async () => {
+    await setUp([{ name: 'Living Room' }, { name: 'Kitchen' }]);
+    const offline = { address: '127.0.0.1', port: 1 };
+    const sp = new SonosSpeakers({
+      rooms: [], log, discovery: sonos.discovery, timings: { pollMs: 10, requestTimeoutMs: 500 },
+      addresses: [offline, { address: '127.0.0.1', port: sonos.player('Kitchen').port }],
+    });
+    const { rooms } = await sp.findRooms();
+    expect(rooms.map((room) => room.name).sort()).toEqual(['Kitchen', 'Living Room']);
+
+    sonos.players.forEach((player) => (player.offline = true));
+    await expect(sp.findRooms()).rejects.toThrow(/^none of the configured speaker addresses answered \(127\.0\.0\.1:1, 127\.0\.0\.1:\d+\)/);
+    expect(sonos.searches).toBe(0);
+  });
+
   it('warns at startup about configured rooms that do not exist', async () => {
     await setUp([{ name: 'Living Room' }, { name: 'Kitchen' }]);
     await speakers(['Living Room', 'Garage']).warmUp();

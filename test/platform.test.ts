@@ -15,7 +15,7 @@ const baseConfig: PlatformConfig = { platform: PLATFORM_NAME, refreshToken: 'con
 describe('parseConfig', () => {
   it('applies defaults', () => {
     expect(parseConfig(baseConfig)).toEqual({
-      refreshToken: 'config-token', rooms: [], locations: [], volume: 100, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
+      refreshToken: 'config-token', rooms: [], locations: [], speakerAddresses: [], volume: 100, repeatIntervalSeconds: 10, maxAnnounceMinutes: 15, audioPort: 0,
     });
   });
 
@@ -23,6 +23,9 @@ describe('parseConfig', () => {
     expect(parseConfig({ ...baseConfig, rooms: [' Kitchen ', '', 'kitchen', 'Den'], repeatIntervalSeconds: '2', volume: '55' }))
       .toMatchObject({ rooms: ['Kitchen', 'Den'], repeatIntervalSeconds: 5, volume: 55 });
     expect(parseConfig({ ...baseConfig, locations: [' Home ', 'home', 'Shop'] })).toMatchObject({ locations: ['Home', 'Shop'] });
+    expect(parseConfig({ ...baseConfig, speakerAddresses: ['192.0.2.10', ' 192.0.2.11:1401 ', 'sonos.local'] })).toMatchObject({
+      speakerAddresses: [{ address: '192.0.2.10', port: 1400 }, { address: '192.0.2.11', port: 1401 }, { address: 'sonos.local', port: 1400 }],
+    });
   });
 
   it('reports every problem at once', () => {
@@ -35,6 +38,10 @@ describe('parseConfig', () => {
     ]);
     expect(parseConfig({ ...baseConfig, rooms: [7] })).toEqual(['"rooms" must be a list of Sonos room names']);
     expect(parseConfig({ ...baseConfig, locations: 'Home' })).toEqual(['"locations" must be a list of Ring location names']);
+    expect(parseConfig({ ...baseConfig, speakerAddresses: ['192.0.2.10:99999', 'http://x'] })).toEqual([
+      '"speakerAddresses" entry "192.0.2.10:99999" must be an IP address or host name, optionally with :port',
+      '"speakerAddresses" entry "http://x" must be an IP address or host name, optionally with :port',
+    ]);
   });
 });
 

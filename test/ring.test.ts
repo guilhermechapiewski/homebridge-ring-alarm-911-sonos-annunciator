@@ -149,6 +149,22 @@ describe('RingAlarmSource', () => {
     ]);
   });
 
+  it("doesn't report the connection as lost while it's still coming up at the start", async () => {
+    ring.locations[0].onConnected.value = false;
+    start({ stuckDisconnectedMs: 150 });
+    await waitFor(() => updates.length > 0);
+    ring.locations[0].onConnected.next(true);
+    expect(connections).toEqual([[true, undefined]]);
+  });
+
+  it('reports a connection that never comes up, and starts over', async () => {
+    ring.locations[0].onConnected.value = false;
+    start({ stuckDisconnectedMs: 100 });
+    await waitFor(() => connections.length > 0);
+    expect(connections[0]).toEqual([false, "the realtime connection didn't come up within 1s; retrying"]);
+    await waitFor(() => ring.apis.length === 2);
+  });
+
   it('saves every new refresh token and uses the latest one when it reconnects', async () => {
     start();
     await waitFor(() => updates.length > 0);
