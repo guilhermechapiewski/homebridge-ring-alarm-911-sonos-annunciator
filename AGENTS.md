@@ -156,6 +156,6 @@ Real-system quirks seen so far:
 
 - 2026-11-14: **0.1.0 published** to npm (tag `v0.1.0`). Built in one go: scaffold; Sonos client (SSDP, topology, per-room snapshot / announce / restore); Ring client on ring-client-api 14.3 (engines Node >=20.18.1); multi-location support (`locations`); `speakerAddresses`; Piper clips in three styles; e2e.
 - Verified on real devices: Sonos discovery and state; announcements and restores for a standalone room, a group member (left and rejoined; the leader kept playing) and a group leader playing a queue (resumed at the same point). Ring: real read-only connection, token rotation saved, live mode changes on multiple locations.
-- Verified in CI-style runs: unit tests (111); e2e (13 scenarios) on Homebridge 1.3.4 and 1.8.5 / Node 20.18.1, 1.11.4 / Node 26, 2.5.0 / Node 22, and against the packed tarball.
+- Verified locally (there is no CI yet): unit tests (111); e2e (13 scenarios) on Homebridge 1.3.4 and 1.8.5 / Node 20.18.1, 1.11.4 / Node 26, 2.5.0 / Node 22, and against the packed tarball.
 - **Not yet verified:** a real alarm (`alarmInfo.state` set) triggering an announcement in a real install; installation from npm on a real HOOBS box.
 - **Next:** first install on HOOBS from npm; record what Ring sends when a real alarm goes off (`ring-cli.js --raw` with a separate token). Never set one off deliberately without the person's explicit go-ahead and their monitoring provider warned first.
