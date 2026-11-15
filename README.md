@@ -82,7 +82,7 @@ To check the token and see your alarm locations' names without Homebridge, clone
 
 - **No Sonos rooms found:** the plugin searches the local network (SSDP). In Docker or with speakers on another VLAN that may not get through; list one speaker's IP address in `speakerAddresses`.
 - **"The speaker didn't play the announcement":** the speakers fetch the clips from Homebridge over HTTP. A firewall on the Homebridge machine may be blocking them; set a fixed `audioPort` and allow it.
-- **Just published / just updated and HOOBS shows "0 plugins installed" or no settings form:** HOOBS lists plugins from its own directory (plugins.hoobs.org), which copies npm on its own schedule; a brand-new plugin can take a few hours to appear. The plugin installs and runs meanwhile. Once it's listed, reboot the HOOBS box if the settings form still doesn't show.
+- **Just published / just updated and HOOBS shows "0 plugins installed" or no settings form:** HOOBS lists plugins from its own directory (plugins.hoobs.org), which copies npm on its own schedule: a new plugin or version usually takes from minutes to a few hours to appear, and sometimes the directory misses a release entirely and only picks the plugin up with a later one. The plugin installs and runs meanwhile. Once it's listed, reboot the HOOBS box if the settings form still doesn't show.
 - **Ring login fails:** generate a new token with `ring-auth-cli` (and don't share it with homebridge-ring).
 - **Stack traces mentioning `ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY`:** these come from the push-notification library ring-client-api uses for camera events. They don't affect alarm announcements.
 
