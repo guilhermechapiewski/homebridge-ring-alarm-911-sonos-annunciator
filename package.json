@@ -1,7 +1,7 @@
 {
   "name": "homebridge-ring-alarm-911-sonos-annunciator",
   "displayName": "Ring Alarm Sonos Announcer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Homebridge plugin that makes your Sonos speakers announce it out loud when your Ring Alarm goes off.",
   "license": "ISC",
   "author": "Guilherme Chapiewski",
@@ -15,6 +15,7 @@
   },
   "keywords": [
     "homebridge-plugin",
+    "supports-hap",
     "hoobs-plugin",
     "hoobs",
     "ring",

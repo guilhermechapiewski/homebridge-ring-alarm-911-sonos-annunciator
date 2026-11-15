@@ -58,7 +58,7 @@ Ring replaces the refresh token every time it's used, and `ring-cli.js` saves th
 - Sonos is `test/fakeSonos.ts` (compiled into `.e2e-build/` by `test:e2e`), reached through `speakerAddresses`, which turns off the network search.
 - Fake clips "play" for 1.5 s: the plugin polls every 300 ms and has to see PLAYING, and the real clips are 1.5–5.3 s. A shorter fake clip makes playback look failed.
 
-Run it against the packed artifact too (`npm pack`, extract, `E2E_PLUGIN_PATH=<extracted>/package node test/e2e/run-e2e.js`; catches files missing from `files`), and across the matrix: Homebridge 1.3.4 and 1.8.x on Node 20.18.1 (the minimum), 1.11.x on current Node, and 2.x on Node 22. Install each into a scratch directory (`npm install homebridge@<v>`), then `HOMEBRIDGE_BIN=<dir>/node_modules/homebridge/bin/homebridge npx -y node@<v> test/e2e/run-e2e.js`.
+Run it against the packed artifact too (`npm pack`, extract, `E2E_PLUGIN_PATH=<extracted>/package node test/e2e/run-e2e.js`; catches files missing from `files`), and across the matrix: Homebridge 1.3.4 and 1.8.x on Node 20.18.1 (the minimum), 1.11.x on Node 24 and 26, and 2.x on Node 22. Install each into a scratch directory (`npm install homebridge@<v>`), then `HOMEBRIDGE_BIN=<dir>/node_modules/homebridge/bin/homebridge npx -y node@<v> test/e2e/run-e2e.js`.
 
 ## Releasing
 
@@ -68,7 +68,13 @@ Run it against the packed artifact too (`npm pack`, extract, `E2E_PLUGIN_PATH=<e
 4. The maintainer runs `npm publish` (their npm login and 2FA). Then tag and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. Never unpublish; if a release is broken, publish a fix (and `npm deprecate` the bad version if needed).
 
-## Compatibility constraints (HOOBS)
+## Plugin conventions and HOOBS
+
+- Follows [homebridge-plugin-template](https://github.com/homebridge/homebridge-plugin-template): `homebridge-` name prefix, `displayName`, `homepage`/`repository`/`bugs`, keywords `homebridge-plugin` (required: the Homebridge UI searches by it, and HOOBS only loads plugins that carry it) and `supports-hap`, `config.schema.json` whose `pluginAlias` equals `PLATFORM_NAME`. Keep these when editing `package.json`.
+- Aims at the [Homebridge Verified](https://github.com/homebridge/plugins/wiki/Verified-Plugins) criteria: dynamic platform, settings GUI, runs on all supported Node LTS versions (22, 24, 26 at the time of writing; the e2e passes on each), no post-install scripts of its own, files only in the Homebridge storage directory, no tracking, errors caught and logged, and a GitHub release with notes for every version.
+- **HOOBS lists plugins from its own directory** (`plugins.hoobs.org`), which mirrors npm on its own schedule; check with `curl -s "https://plugins.hoobs.org/api/plugins?identifier=homebridge-ring-alarm-911-sonos-annunciator"` (`count: 0` = not indexed yet). A sibling plugin's first publish took about 2 h to appear; later versions minutes. Until then HOOBS can still install it, but the bridge shows "0 plugins installed" and no settings form; after indexing, a reboot of the HOOBS box may be needed for the form. HOOBS installs per bridge (`yarn add` in `/var/lib/hoobs/<bridge>`) and ignores global installs. More HOOBS quirks (encrypted bridge configs, a desktop-page crash for brand-new plugins) are in the sibling repos' AGENTS.md.
+
+## Compatibility constraints
 
 This plugin needs **Node 20.18.1 or newer**. Older HOOBS installs (seen in the wild on Node 14–16) can't run it, unlike its siblings; the README says so.
 
@@ -156,6 +162,7 @@ Real-system quirks seen so far:
 
 - 2026-11-14: **0.1.0 published** to npm (tag `v0.1.0`). Built in one go: scaffold; Sonos client (SSDP, topology, per-room snapshot / announce / restore); Ring client on ring-client-api 14.3 (engines Node >=20.18.1); multi-location support (`locations`); `speakerAddresses`; Piper clips in three styles; e2e.
 - Verified on real devices: Sonos discovery and state; announcements and restores for a standalone room, a group member (left and rejoined; the leader kept playing) and a group leader playing a queue (resumed at the same point). Ring: real read-only connection, token rotation saved, live mode changes on multiple locations.
-- Verified locally (there is no CI yet): unit tests (111); e2e (13 scenarios) on Homebridge 1.3.4 and 1.8.5 / Node 20.18.1, 1.11.4 / Node 26, 2.5.0 / Node 22, and against the packed tarball.
+- Verified locally (there is no CI yet): unit tests (111); e2e (13 scenarios) on Homebridge 1.3.4 and 1.8.5 / Node 20.18.1, 1.11.4 / Node 24 and 26, 2.5.0 / Node 22, and against the packed tarball.
+- 0.1.1 (metadata): `supports-hap` keyword, HOOBS directory notes in the README.
 - **Not yet verified:** a real alarm (`alarmInfo.state` set) triggering an announcement in a real install; installation from npm on a real HOOBS box.
 - **Next:** first install on HOOBS from npm; record what Ring sends when a real alarm goes off (`ring-cli.js --raw` with a separate token). Never set one off deliberately without the person's explicit go-ahead and their monitoring provider warned first.
