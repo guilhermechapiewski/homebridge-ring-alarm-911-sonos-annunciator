@@ -3,6 +3,7 @@ import http from 'http';
 import os from 'os';
 import path from 'path';
 
+import { ANNOUNCEMENT_STYLES } from '../src/alarm';
 import { AudioServer, parseRange } from '../src/audioServer';
 
 interface Response {
@@ -65,6 +66,11 @@ describe('AudioServer', () => {
 
   it('lists the clips missing from the directory', () => {
     expect(server.missingClips()).toEqual(['fire', 'co', 'fire-or-co', 'panic', 'alarm', 'test']);
+  });
+
+  it.each(ANNOUNCEMENT_STYLES)('the package has every clip for the %s style', (style) => {
+    const packaged = new AudioServer({ directory: path.join(__dirname, '..', 'audio', style), port: 0 });
+    expect(packaged.missingClips()).toEqual([]);
   });
 
   it('serves a clip', async () => {

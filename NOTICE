@@ -1,0 +1,15 @@
+homebridge-ring-alarm-911-sonos-annunciator
+Copyright (c) 2026 Guilherme Chapiewski. Licensed under the ISC License (see LICENSE).
+
+Announcement audio (audio/**/*.wav)
+-----------------------------------
+The announcement clips were synthesized with Piper (https://github.com/OHF-Voice/piper1-gpl)
+using the "en_US-ljspeech-high" voice from https://huggingface.co/rhasspy/piper-voices
+(en/en_US/ljspeech/high).
+
+That voice was trained from scratch on the LJ Speech Dataset
+(https://keithito.com/LJ-Speech-Dataset/), which is in the public domain, as
+stated in the voice's MODEL_CARD. Piper itself was only used to render the
+clips; no Piper code is included in this package.
+
+The clips can be regenerated with scripts/make-clips.js.

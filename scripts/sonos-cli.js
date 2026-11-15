@@ -7,14 +7,14 @@
  *   node scripts/sonos-cli.js discover               # players that answer the SSDP search
  *   node scripts/sonos-cli.js rooms                  # rooms and groups, as the plugin sees them
  *   node scripts/sonos-cli.js state [room...]        # what each room is doing (what would be restored)
- *   node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30]
+ *   node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30] [--style standard]
  *                                                    # PLAYS OUT LOUD, then restores the rooms
  *
  * Everything except `announce` only reads from the speakers.
  */
 const path = require('path');
 
-const { CLIP_NAMES } = require('../dist/alarm');
+const { ANNOUNCEMENT_STYLES, CLIP_NAMES } = require('../dist/alarm');
 const { AudioServer } = require('../dist/audioServer');
 const { RoomControl, SonosSpeakers, DEFAULT_TIMINGS, selectRooms, sourceKind } = require('../dist/sonos');
 const { discoverPlayers } = require('../dist/sonosDiscovery');
@@ -86,10 +86,11 @@ async function main() {
   if (command === 'announce') {
     const clip = option(args, '--clip', 'test');
     const volume = Number(option(args, '--volume', '30'));
-    if (!CLIP_NAMES.includes(clip) || !(volume >= 1 && volume <= 100) || !args.length) {
-      throw new Error(`Usage: announce <room...> [--clip ${CLIP_NAMES.join('|')}] [--volume 1-100]`);
+    const style = option(args, '--style', 'standard');
+    if (!CLIP_NAMES.includes(clip) || !ANNOUNCEMENT_STYLES.includes(style) || !(volume >= 1 && volume <= 100) || !args.length) {
+      throw new Error(`Usage: announce <room...> [--clip ${CLIP_NAMES.join('|')}] [--volume 1-100] [--style ${ANNOUNCEMENT_STYLES.join('|')}]`);
     }
-    const audio = new AudioServer({ directory: path.join(__dirname, '..', 'audio'), port: 0 });
+    const audio = new AudioServer({ directory: path.join(__dirname, '..', 'audio', style), port: 0 });
     await audio.start();
     try {
       const session = await new SonosSpeakers({ rooms: args, log }).begin({ volume });

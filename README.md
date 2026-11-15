@@ -1,6 +1,6 @@
 # homebridge-ring-alarm-911-sonos-annunciator
 
-When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud ("Alarm triggered. The monitoring center has been notified."), repeating until the alarm is cleared, then go back to whatever they were playing. Runs on Homebridge or HOOBS.
+When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud ("Alarm triggered. Check the house and the Ring app."), repeating until the alarm is cleared, then go back to whatever they were playing. Runs on Homebridge or HOOBS.
 
 > **Work in progress.** Both sides are built and unit-tested, but haven't been tried together against a real alarm yet.
 
@@ -39,6 +39,7 @@ When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud 
 | `refreshToken` | yes | | Ring refresh token, see [Getting a Ring refresh token](#getting-a-ring-refresh-token). Ring rotates it; the plugin keeps the latest one in Homebridge's storage folder. Paste a new one only if the plugin loses access. |
 | `rooms` | no | every room | Sonos rooms to announce in, named as in the Sonos app. |
 | `locations` | if several | the only one | Ring locations whose alarm is announced, named as in the Ring app. Required when your account has more than one location with a Ring Alarm (the plugin logs their names and waits for you to choose). |
+| `announcementStyle` | no | `standard` | How the announcements are worded: `standard` ("Alarm triggered. Check the house and the Ring app."), `urgent` ("Burglar alarm! Burglar alarm!") or `deterrent` ("Warning. The alarm has been triggered and the owners have been alerted. Leave now."). Fire and carbon monoxide alarms always tell everyone to leave the house. |
 | `volume` | no | `100` | Volume (1-100) while announcing. Each room goes back to its own volume afterwards. |
 | `repeatIntervalSeconds` | no | `10` | From the start of one announcement to the next (minimum 5). |
 | `maxAnnounceMinutes` | no | `15` | Stop announcing after this long even if the alarm is still active. |
@@ -76,4 +77,4 @@ See [AGENTS.md](AGENTS.md) for the design, the protocol notes and the project's 
 
 ## License
 
-ISC
+ISC. The announcement clips use a public-domain voice; see [NOTICE](NOTICE).

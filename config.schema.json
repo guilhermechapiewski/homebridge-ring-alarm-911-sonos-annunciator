@@ -40,6 +40,17 @@
           "placeholder": "Home"
         }
       },
+      "announcementStyle": {
+        "title": "Announcement style",
+        "type": "string",
+        "default": "standard",
+        "oneOf": [
+          { "title": "Standard: \"Alarm triggered. Check the house and the Ring app.\"", "enum": ["standard"] },
+          { "title": "Urgent: \"Burglar alarm! Burglar alarm!\"", "enum": ["urgent"] },
+          { "title": "Deterrent: \"Warning. The alarm has been triggered and the owners have been alerted. Leave now.\"", "enum": ["deterrent"] }
+        ],
+        "description": "How the announcements are worded. Fire and carbon monoxide alarms always tell everyone to leave the house."
+      },
       "speakerAddresses": {
         "title": "Sonos speaker addresses",
         "type": "array",
@@ -102,6 +113,7 @@
       ]
     },
     "volume",
+    "announcementStyle",
     {
       "type": "fieldset",
       "title": "Advanced",

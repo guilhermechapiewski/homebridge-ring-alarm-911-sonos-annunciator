@@ -73,7 +73,7 @@ describe('SonosSpeakers', () => {
   const calls = (room: string) => sonos.player(room).calls.filter((c) => !c.startsWith('Get'));
 
   beforeAll(async () => {
-    audio = new AudioServer({ directory: path.join(__dirname, '..', 'audio'), port: 0 });
+    audio = new AudioServer({ directory: path.join(__dirname, '..', 'audio', 'standard'), port: 0 });
     await audio.start();
   });
   afterAll(() => audio.stop());

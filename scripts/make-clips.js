@@ -1,12 +1,18 @@
 #!/usr/bin/env node
-// Renders the announcement clips (CLIP_TEXT in src/alarm.ts) into audio/<clip>.wav
-// with macOS's `say`. Needs a build first (npm run build).
-//
-//   node scripts/make-clips.js [--voice Samantha] [--rate 170] [--only burglar,test]
-//
-// NOTE: check the license of the voice before publishing clips made this way
-// (see AGENTS.md, "Open decisions").
-
+'use strict';
+/**
+ * Renders the announcement clips (CLIP_TEXT in src/alarm.ts) into
+ * audio/<style>/<clip>.wav with Piper and the en_US-ljspeech-high voice
+ * (public domain; see NOTICE). Needs a build first (npm run build).
+ *
+ *   python3 -m venv /tmp/piper && /tmp/piper/bin/pip install piper-tts
+ *   /tmp/piper/bin/python -m piper.download_voices en_US-ljspeech-high   # in some folder
+ *   node scripts/make-clips.js --python /tmp/piper/bin/python --model <folder>/en_US-ljspeech-high.onnx \
+ *     [--style standard,urgent] [--only burglar,test]
+ *
+ * Use a voice whose license allows redistribution (check its MODEL_CARD, and
+ * what it was fine-tuned from), and update NOTICE if it changes.
+ */
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -16,31 +22,49 @@ function arg(name) {
   return index > 0 ? process.argv[index + 1] : undefined;
 }
 
-let CLIP_TEXT;
+let alarm;
 try {
-  ({ CLIP_TEXT } = require('../dist/alarm'));
+  alarm = require('../dist/alarm');
 } catch {
   console.error('Run "npm run build" first.');
   process.exit(1);
 }
+const { ANNOUNCEMENT_STYLES, CLIP_NAMES, CLIP_TEXT } = alarm;
 
-const voice = arg('voice');
-const rate = arg('rate') ?? '170';
-const only = arg('only') ? arg('only').split(',') : Object.keys(CLIP_TEXT);
-const outDir = path.join(__dirname, '..', 'audio');
-fs.mkdirSync(outDir, { recursive: true });
-
-for (const clip of only) {
-  const text = CLIP_TEXT[clip];
-  if (!text) {
+const python = arg('python') || 'python3';
+const model = arg('model');
+if (!model || !fs.existsSync(model)) {
+  console.error('Usage: node scripts/make-clips.js --python <python with piper-tts> --model <voice.onnx> [--style ...] [--only ...]');
+  process.exit(2);
+}
+const styles = arg('style') ? arg('style').split(',') : ANNOUNCEMENT_STYLES;
+const clips = arg('only') ? arg('only').split(',') : CLIP_NAMES;
+for (const style of styles) {
+  if (!ANNOUNCEMENT_STYLES.includes(style)) {
+    console.error(`Unknown style "${style}"`);
+    process.exit(2);
+  }
+}
+for (const clip of clips) {
+  if (!CLIP_NAMES.includes(clip)) {
     console.error(`Unknown clip "${clip}"`);
-    process.exit(1);
+    process.exit(2);
   }
-  const file = path.join(outDir, `${clip}.wav`);
-  const args = ['-o', file, '--file-format=WAVE', '--data-format=LEI16@22050', '-r', rate];
-  if (voice) {
-    args.push('-v', voice);
+}
+
+const jobs = [];
+for (const style of styles) {
+  const dir = path.join(__dirname, '..', 'audio', style);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const clip of clips) {
+    jobs.push({ out: path.join(dir, `${clip}.wav`), text: CLIP_TEXT[style][clip], label: `${style}/${clip}` });
   }
-  execFileSync('say', [...args, text], { stdio: 'inherit' });
-  console.log(`${clip}: ${file} (${fs.statSync(file).size} bytes) "${text}"`);
+}
+
+execFileSync(python, [path.join(__dirname, 'piper-render.py'), path.resolve(model)], {
+  input: JSON.stringify(jobs.map(({ out, text }) => ({ out, text }))),
+  stdio: ['pipe', 'inherit', 'inherit'],
+});
+for (const job of jobs) {
+  console.log(`${job.label}: ${fs.statSync(job.out).size} bytes  "${job.text}"`);
 }

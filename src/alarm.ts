@@ -17,25 +17,53 @@ export const KNOWN_ALARM_STATES = [
 /** Which announcement to play. `test` is only for the test switch. */
 export type ClipName = 'burglar' | 'fire' | 'co' | 'fire-or-co' | 'panic' | 'alarm' | 'test';
 
-/**
- * The words in each clip. `scripts/make-clips.sh` renders these into
- * `audio/<name>.wav`; keep the two in sync.
- *
- * The wording avoids promising that police are coming: Ring's monitoring
- * center usually calls first, and nothing is dispatched if the alarm is
- * cancelled or there's no monitoring plan.
- */
-export const CLIP_TEXT: Record<ClipName, string> = {
-  burglar: 'Alarm triggered. The monitoring center has been notified.',
+/** How the announcements are worded; picked in the plugin settings. */
+export type AnnouncementStyle = 'standard' | 'urgent' | 'deterrent';
+
+export const ANNOUNCEMENT_STYLES: AnnouncementStyle[] = ['standard', 'urgent', 'deterrent'];
+export const DEFAULT_ANNOUNCEMENT_STYLE: AnnouncementStyle = 'standard';
+
+const TEST_TEXT = 'This is a test of the alarm announcer. No alarm is active.';
+const STANDARD: Record<ClipName, string> = {
+  burglar: 'Alarm triggered. Check the house and the Ring app.',
   fire: 'Fire alarm. Leave the house now.',
   co: 'Carbon monoxide alarm. Leave the house now.',
   'fire-or-co': 'Smoke or carbon monoxide alarm. Leave the house now.',
-  panic: 'Panic alarm triggered. The monitoring center has been notified.',
+  panic: 'Panic alarm triggered. Check the house and the Ring app.',
   alarm: 'Alarm triggered.',
-  test: 'This is a test of the alarm announcer. No alarm is active.',
+  test: TEST_TEXT,
 };
 
-export const CLIP_NAMES = Object.keys(CLIP_TEXT) as ClipName[];
+/**
+ * The words in each clip, per style. `scripts/make-clips.js` renders these
+ * into `audio/<style>/<clip>.wav`; re-render after changing them.
+ *
+ * Nothing here may promise help that might not come: not everyone has
+ * Ring's professional monitoring, its monitoring center usually calls
+ * before dispatching, and nothing is dispatched if the alarm is cancelled.
+ * A unit test guards this.
+ */
+export const CLIP_TEXT: Record<AnnouncementStyle, Record<ClipName, string>> = {
+  standard: STANDARD,
+  urgent: {
+    burglar: 'Burglar alarm! Burglar alarm!',
+    fire: 'Fire! Fire! Get out now!',
+    co: 'Carbon monoxide! Get out now!',
+    'fire-or-co': 'Smoke or carbon monoxide! Get out now!',
+    panic: 'Panic alarm! Panic alarm!',
+    alarm: 'Alarm! Alarm!',
+    test: TEST_TEXT,
+  },
+  // Speaks to an intruder; fire and CO aren't about one, so they stay plain.
+  deterrent: {
+    ...STANDARD,
+    burglar: 'Warning. The alarm has been triggered and the owners have been alerted. Leave now.',
+    panic: 'Warning. An emergency alarm has been triggered. Help has been alerted.',
+    alarm: 'Warning. The alarm has been triggered.',
+  },
+};
+
+export const CLIP_NAMES = Object.keys(STANDARD) as ClipName[];
 
 /**
  * Picks the announcement for a security-panel alarm state, or undefined when

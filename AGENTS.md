@@ -19,7 +19,7 @@ In Apple Home it shows one accessory, "Alarm Announcer", with two switches: **Al
   - **sending any command to Ring** other than reading state. Never arm, disarm, sound or silence the siren, or trigger anything that could dispatch the monitoring center.
 - **Never commit secrets.** The Ring refresh token is passed via the `RING_REFRESH_TOKEN` env var for scripts, never written into the repo. Don't log tokens (not even partially), and don't log Ring account details (email, location address, device serials).
 - **This repo is open source and must stay generic.** Nothing may be tailored to, or describe, any particular home or test setup: no IP addresses, Sonos room names, Ring location names/IDs, device IDs, or versions/details of a specific machine, in code, docs or commit messages. Use RFC 5737 addresses (`192.0.2.x`), generic rooms (`Living Room`, `Kitchen`), and made-up IDs. Grep for leaks before committing.
-- **Licensing:** ISC (`LICENSE`). `ring-client-api` (MIT) is a normal npm dependency, nothing is copied from it. If code is ever ported from anywhere, add a `NOTICE` file with its license and ship it in `files`.
+- **Licensing:** ISC (`LICENSE`); third-party credits in `NOTICE` (the clip voice). `ring-client-api` (MIT) is a normal npm dependency, nothing is copied from it. If code is ever ported from anywhere, add a `NOTICE` file with its license and ship it in `files`.
 - Match the surrounding code style (TypeScript, single quotes, semicolons, trailing commas; see `eslint.config.mjs`).
 
 ## Commands
@@ -31,12 +31,12 @@ npm test            # Jest unit tests: real local HTTP servers + real HAP object
 npm run test:e2e    # builds, then real Homebridge vs a fake Ring module + fake Sonos (~1 min)
 npm run build       # tsc -> dist/ (CommonJS, ES2020)
 
-# Regenerate the announcement clips (macOS only; needs a build). See "Open decisions" about licensing.
-node scripts/make-clips.js [--voice <name>] [--rate 170] [--only burglar,test]
+# Regenerate the clips with Piper (needs a build, and Python with `pip install piper-tts`; see the script's header).
+node scripts/make-clips.js --python <venv>/bin/python --model <dir>/en_US-ljspeech-high.onnx [--style urgent] [--only burglar,test]
 
 # Real Sonos checks with the plugin's own code (needs a build). All read-only except `announce`.
 node scripts/sonos-cli.js discover | rooms | state [room...]     # DEBUG=1 shows raw URIs
-node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30]   # PLAYS OUT LOUD: ask before running
+node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30] [--style standard]   # PLAYS OUT LOUD: ask before running
 
 # Read-only Ring check with the plugin's own code (needs a build). Token from RING_REFRESH_TOKEN, else RING_TOKEN_FILE
 # (default ~/.ring-alarm-announcer-token, mode 600, rewritten with every rotated token), else a hidden prompt.
@@ -69,13 +69,13 @@ This plugin needs **Node 20.18.1 or newer**. Older HOOBS installs (seen in the w
 - `test/fakeSonos.ts`: a pretend Sonos system (one HTTP server per speaker + SSDP responder) that really fetches the clip URLs. Used by the unit tests and the e2e.
 - `test/e2e/`: `run-e2e.js` (the runner) and `fakeRing.mjs` (stands in for ring-client-api).
 - `src/platform.ts`: config parsing, wiring, the accessory and its two switches.
-- `audio/*.wav`: the clips (22.05 kHz 16-bit mono WAV, ~50–180 KB each), shipped in the package.
+- `audio/<style>/<clip>.wav`: the clips, one folder per `announcementStyle` (22.05 kHz 16-bit mono, 0.4 s lead-in, peak −1 dBFS, 1.5–5.3 s), shipped in the package; the clip server serves the configured style's folder. `scripts/make-clips.js` + `scripts/piper-render.py` render them.
 
 ## Alarm behavior (design)
 
 - **Announce on:** any `alarmInfo.state` except `entry-delay`. Burglar (`burglar-alarm`, `burglar-accelerated-alarm`, `user-verified-burglar-alarm`), fire (`fire-alarm`, `fire-accelerated-alarm`), CO (`co-alarm`), `user-verified-co-or-fire-alarm`, and `panic` each have a clip. Unknown future states get a generic "Alarm triggered." (a silent miss is worse) and log a warning.
 - **Not during entry delay:** that's usually someone coming home to disarm.
-- **Wording:** never "911 is on the way". Ring's monitoring center usually calls before dispatching, and nothing is dispatched if the alarm is cancelled or there's no monitoring plan. The burglar clip says "The monitoring center has been notified." A unit test guards this.
+- **Wording:** three styles (`announcementStyle`: standard, urgent, deterrent), each with every clip; text in `CLIP_TEXT`. Never promise help that might not come: no 911, police, "monitoring center notified" or dispatch (not everyone has professional monitoring, Ring's center usually calls first, and nothing is dispatched if the alarm is cancelled). Fire and CO clips always say to leave, in every style. Unit tests guard both.
 - **Repeat** every `repeatIntervalSeconds` (default 10, min 5), measured start to start; **stop** after `maxAnnounceMinutes` (default 15) even if the alarm is still active, so a stuck state or a lost "disarmed" can't loop forever. Quiet until that alarm clears, then re-armed.
 - **Escalation** switches clips at once, without waiting out the pause.
 - **Speaker failures** while an alarm is active: retried every round; the first failure is an error, later ones debug.
@@ -113,7 +113,7 @@ Real-system quirks seen so far:
 
 ## Open decisions
 
-- **Clip voice licensing.** The checked-in clips are rendered with macOS `say`. Apple's license may not allow redistributing system-voice output in a public package. Before publishing: switch to a clearly licensed voice (or record them), or ship no clips and generate them at install time.
+- (Decided 2026-11-14) **Clip voice:** Piper with `en_US-ljspeech-high`, trained from scratch on the public-domain LJ Speech dataset (credited in `NOTICE`, shipped in `files`). Many Piper voices are not redistributable: lessac needs a signed research licence, ryan and hfc_* are CC BY-NC-SA, and several voices are fine-tuned from lessac. Check a new voice's MODEL_CARD and its training lineage before switching. Piper (GPL-3.0) is a development tool here; none of it ships.
 - **Should the plugin also expose the alarm state** (e.g. a contact/occupancy sensor) to HomeKit? Probably not: homebridge-ring already does, and this plugin should stay single-purpose.
 
 ## Status (update as work lands)
@@ -122,4 +122,5 @@ Real-system quirks seen so far:
 - 2026-11-14: Sonos client: SSDP discovery, topology, per-room snapshot / announce / restore, `scripts/sonos-cli.js`. Unit tests (88) green against `test/fakeSonos.ts`. Real system: `discover`, `rooms` and `state` checked read-only against a real system. Real announcements played and restored: a standalone room with nothing loaded (which found the clip-left-loaded issue above); a group member (left the group, rejoined it, the leader kept playing Spotify Connect throughout); and a group leader playing a queue (the whole group heard it, then resumed the same track at the interrupted position).
 - 2026-11-14: Ring client on ring-client-api 14.3 instead of our own; engines bumped to Node >=20.18.1. Unit tests with fakes; the ESM loader works from `dist/` on Node 26 and 20.18.1, and the unit tests pass on 20.18.1 too. A real read-only connection (`scripts/ring-cli.js`) connected, read the panel mode and saved the rotated token. **Not yet:** a real alarm state change seen live.
 - 2026-11-14: e2e green (13 scenarios: alarm, repeat, escalation, restore, entry delay, both switches, Ring disconnect, restart with remembered switch and rotated token) on Homebridge 1.11.4 / Node 26, 1.8.5 / Node 20.18.1 and 2.5.0 / Node 22, and against the packed tarball. Added `speakerAddresses` (skip SSDP; for Docker/VLAN setups, and what keeps the e2e off real speakers). The e2e found that the initial connection was logged as lost-then-reconnected; fixed.
-- **Next:** decide the clip voice licensing; then publish and a test install on HOOBS.
+- 2026-11-14: clips re-rendered with Piper (en_US-ljspeech-high, public domain) in three selectable styles; no wording claims monitoring anymore.
+- **Next:** publish and a test install on HOOBS.

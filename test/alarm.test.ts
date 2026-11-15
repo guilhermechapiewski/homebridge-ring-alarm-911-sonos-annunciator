@@ -1,4 +1,4 @@
-import { CLIP_NAMES, CLIP_TEXT, clipForAlarmState, isKnownAlarmState, KNOWN_ALARM_STATES } from '../src/alarm';
+import { ANNOUNCEMENT_STYLES, CLIP_NAMES, CLIP_TEXT, clipForAlarmState, isKnownAlarmState, KNOWN_ALARM_STATES } from '../src/alarm';
 
 describe('clipForAlarmState', () => {
   it.each([
@@ -28,11 +28,31 @@ describe('clipForAlarmState', () => {
 });
 
 describe('CLIP_TEXT', () => {
-  it('has text for every clip and never promises that 911 is coming', () => {
-    expect(CLIP_NAMES).toEqual(expect.arrayContaining(['burglar', 'fire', 'co', 'fire-or-co', 'panic', 'alarm', 'test']));
-    for (const clip of CLIP_NAMES) {
-      expect(CLIP_TEXT[clip].length).toBeGreaterThan(5);
-      expect(CLIP_TEXT[clip]).not.toMatch(/911|on the way/i);
+  it('has text for every clip in every style', () => {
+    expect(CLIP_NAMES).toEqual(['burglar', 'fire', 'co', 'fire-or-co', 'panic', 'alarm', 'test']);
+    expect(Object.keys(CLIP_TEXT).sort()).toEqual([...ANNOUNCEMENT_STYLES].sort());
+    for (const style of ANNOUNCEMENT_STYLES) {
+      expect(Object.keys(CLIP_TEXT[style]).sort()).toEqual([...CLIP_NAMES].sort());
+      for (const clip of CLIP_NAMES) {
+        expect(CLIP_TEXT[style][clip].length).toBeGreaterThan(5);
+      }
+    }
+  });
+
+  it('never promises help that might not come', () => {
+    // Not everyone has professional monitoring, and nothing is dispatched if the alarm is cancelled.
+    for (const style of ANNOUNCEMENT_STYLES) {
+      for (const clip of CLIP_NAMES) {
+        expect(CLIP_TEXT[style][clip]).not.toMatch(/911|police|on the way|monitoring|dispatch|fire department/i);
+      }
+    }
+  });
+
+  it('always tells everyone to leave for fire and carbon monoxide', () => {
+    for (const style of ANNOUNCEMENT_STYLES) {
+      for (const clip of ['fire', 'co', 'fire-or-co'] as const) {
+        expect(CLIP_TEXT[style][clip]).toMatch(/leave the house|get out/i);
+      }
     }
   });
 });

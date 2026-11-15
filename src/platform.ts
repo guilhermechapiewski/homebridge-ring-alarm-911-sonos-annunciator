@@ -2,7 +2,7 @@ import path from 'path';
 
 import type { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 
-import { isKnownAlarmState } from './alarm';
+import { ANNOUNCEMENT_STYLES, AnnouncementStyle, DEFAULT_ANNOUNCEMENT_STYLE, isKnownAlarmState } from './alarm';
 import { Announcer } from './announcer';
 import { AudioServer } from './audioServer';
 import { AlarmSource, RingAlarmSource, RingAlarmSourceOptions } from './ring';
@@ -28,6 +28,8 @@ export interface AnnouncerPlatformConfig {
   /** Sonos speakers to ask for the rooms instead of searching the network; empty means search. */
   speakerAddresses: Array<{ address: string; port: number }>;
   volume: number;
+  /** Which wording the clips use. */
+  announcementStyle: AnnouncementStyle;
   repeatIntervalSeconds: number;
   maxAnnounceMinutes: number;
   /** Port for the clip server; 0 picks a free one. */
@@ -42,7 +44,7 @@ export interface AnnouncerAccessoryContext {
 export interface PlatformDeps {
   createAlarmSource?: (options: RingAlarmSourceOptions) => AlarmSource;
   createSpeakers?: (settings: AnnouncerPlatformConfig) => Speakers;
-  /** Where the clips are; defaults to the package's `audio` directory. */
+  /** Where the clips are (one folder per style); defaults to the package's `audio` directory. */
   audioDirectory?: string;
   /** Defaults to Homebridge's storage path. */
   storagePath?: string;
@@ -106,6 +108,12 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
     speakerAddresses.push({ address: match[1], port });
   }
 
+  const style = config.announcementStyle === undefined || config.announcementStyle === null || config.announcementStyle === ''
+    ? DEFAULT_ANNOUNCEMENT_STYLE : config.announcementStyle;
+  if (!ANNOUNCEMENT_STYLES.includes(style)) {
+    errors.push(`"announcementStyle" must be one of ${ANNOUNCEMENT_STYLES.map((s) => `"${s}"`).join(', ')}`);
+  }
+  const announcementStyle = style as AnnouncementStyle;
   const volume = Math.round(readNumber(config, 'volume', DEFAULT_VOLUME, 1, 100, errors, 'a number from 1 to 100'));
   const repeatIntervalSeconds = Math.max(MIN_REPEAT_INTERVAL_SECONDS, readNumber(
     config, 'repeatIntervalSeconds', DEFAULT_REPEAT_INTERVAL_SECONDS, 0, 3600, errors, 'a number of seconds'));
@@ -116,7 +124,7 @@ export function parseConfig(config: PlatformConfig): AnnouncerPlatformConfig | s
     errors.push('"audioPort" must be a whole number');
   }
 
-  return errors.length ? errors : { refreshToken, rooms, locations, speakerAddresses, volume, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
+  return errors.length ? errors : { refreshToken, rooms, locations, speakerAddresses, volume, announcementStyle, repeatIntervalSeconds, maxAnnounceMinutes, audioPort };
 }
 
 /**
@@ -167,7 +175,7 @@ export class AnnouncerPlatform implements DynamicPlatformPlugin {
     }
 
     const audioServer = new AudioServer({
-      directory: this.deps.audioDirectory ?? path.join(__dirname, '..', 'audio'),
+      directory: path.join(this.deps.audioDirectory ?? path.join(__dirname, '..', 'audio'), settings.announcementStyle),
       port: settings.audioPort,
     });
     const missing = audioServer.missingClips();
