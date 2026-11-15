@@ -123,6 +123,23 @@ describe('RingAlarmSource', () => {
     expect(lastUpdate()).toEqual({ alarmState: undefined, mode: 'none' });
   });
 
+  it('reports the connection only when it goes up or down', async () => {
+    ring.locations = [new FakeLocation('home'), new FakeLocation('cabin')];
+    start();
+    await waitFor(() => updates.length >= 2);
+    expect(connections).toEqual([[true, undefined]]);
+    ring.locations[0].onConnected.next(false);
+    ring.locations[1].onConnected.next(false);
+    ring.locations[0].onConnected.next(true);
+    ring.locations[1].onConnected.next(true);
+    ring.locations[1].onConnected.next(true);
+    expect(connections).toEqual([
+      [true, undefined],
+      [false, 'realtime connection lost; ring-client-api is reconnecting'],
+      [true, undefined],
+    ]);
+  });
+
   it('saves every new refresh token and uses the latest one when it reconnects', async () => {
     start();
     await waitFor(() => updates.length > 0);

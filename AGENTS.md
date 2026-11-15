@@ -37,8 +37,8 @@ node scripts/make-clips.js [--voice <name>] [--rate 170] [--only burglar,test]
 node scripts/sonos-cli.js discover | rooms | state [room...]     # DEBUG=1 shows raw URIs
 node scripts/sonos-cli.js announce <room...> [--clip test] [--volume 30]   # PLAYS OUT LOUD: ask before running
 
-# Read-only Ring check with the plugin's own code (needs a build). Hidden token prompt (or RING_REFRESH_TOKEN);
-# saves the rotated token to RING_TOKEN_FILE (default ~/.ring-alarm-announcer-token, mode 600).
+# Read-only Ring check with the plugin's own code (needs a build). Token from RING_REFRESH_TOKEN, else RING_TOKEN_FILE
+# (default ~/.ring-alarm-announcer-token, mode 600, rewritten with every rotated token), else a hidden prompt.
 node scripts/ring-cli.js [seconds, default 30 | --watch]
 ```
 
@@ -114,5 +114,5 @@ Real-system quirks seen so far:
 
 - 2026-11-14: scaffold. Config, alarm-state mapping, announcement loop, clip server, token store, platform and switches are done with unit tests (57) green on Node 26 / Homebridge 1.11. Ring and Sonos clients are stubs (the plugin logs that it's not implemented). Not yet: e2e, version-matrix runs, real-device checks.
 - 2026-11-14: Sonos client: SSDP discovery, topology, per-room snapshot / announce / restore, `scripts/sonos-cli.js`. Unit tests (88) green against `test/fakeSonos.ts`. Real system: `discover`, `rooms` and `state` checked read-only against a real system. **Not yet checked on real speakers:** an actual announcement and restore.
-- 2026-11-14: Ring client on ring-client-api 14.3 instead of our own; engines bumped to Node >=20.18.1. Unit tests with fakes; the ESM loader works from `dist/` on Node 26 and 20.18.1, and the unit tests pass on 20.18.1 too. **Not yet:** a real read-only connection to Ring (needs a fresh token from `ring-auth-cli`).
-- **Next:** a real test announcement in one room (`sonos-cli.js announce <room>`), especially restore of a grouped room and of Spotify Connect; a first real run of `scripts/ring-cli.js`; then the e2e and a test install on HOOBS.
+- 2026-11-14: Ring client on ring-client-api 14.3 instead of our own; engines bumped to Node >=20.18.1. Unit tests with fakes; the ESM loader works from `dist/` on Node 26 and 20.18.1, and the unit tests pass on 20.18.1 too. A real read-only connection (`scripts/ring-cli.js`) connected, read the panel mode and saved the rotated token. **Not yet:** a real alarm state change seen live.
+- **Next:** a real test announcement in one room (`sonos-cli.js announce <room>`), especially restore of a grouped room and of Spotify Connect; then the e2e and a test install on HOOBS.

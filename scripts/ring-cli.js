@@ -6,10 +6,11 @@
  *   npm run build
  *   node scripts/ring-cli.js [seconds, default 30 | --watch]
  *
- * Asks for the refresh token at a hidden prompt (or reads RING_REFRESH_TOKEN).
- * Ring replaces the token whenever it's used, so the newest one is saved to
- * RING_TOKEN_FILE (default ~/.ring-alarm-announcer-token, readable only by
- * you); use that one in the plugin config. Prints the connection, the arming
+ * Token: RING_REFRESH_TOKEN if set, else the one saved by a previous run in
+ * RING_TOKEN_FILE (default ~/.ring-alarm-announcer-token), else a hidden
+ * prompt. Ring replaces the token whenever it's used, so the newest one is
+ * always saved to RING_TOKEN_FILE (readable only by you); use that one in
+ * the plugin config. Prints the connection, the arming
  * mode and the alarm state, nothing about the account. Never sends the alarm
  * a command. DEBUG=1 shows ring-client-api's own log.
  */
@@ -52,7 +53,14 @@ async function main() {
     process.exit(2);
   }
 
-  const token = process.env.RING_REFRESH_TOKEN || await askHidden('Ring refresh token: ');
+  let token = process.env.RING_REFRESH_TOKEN;
+  if (!token && fs.existsSync(tokenFile)) {
+    token = fs.readFileSync(tokenFile, 'utf8').trim();
+    say(`Using the token saved in ${tokenFile}`);
+  }
+  if (!token) {
+    token = await askHidden('Ring refresh token: ');
+  }
   if (!token) {
     throw new Error('No token given');
   }

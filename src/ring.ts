@@ -138,6 +138,8 @@ export class RingAlarmSource implements AlarmSource {
   private retryTimer?: NodeJS.Timeout;
   private stuckTimer?: NodeJS.Timeout;
   private stopped = false;
+  /** Last connection state given to the handlers. */
+  private reported?: boolean;
 
   constructor(private readonly options: RingAlarmSourceOptions) {
     this.timings = { ...DEFAULT_RING_TIMINGS, ...options.timings };
@@ -169,7 +171,7 @@ export class RingAlarmSource implements AlarmSource {
         } catch (error) {
           // Not worth retrying: the package is missing or this Node is too old for it.
           log.error(`Unable to load ring-client-api (needs Node 20.18.1 or newer): ${errorMessage(error)}`);
-          this.handlers?.onConnection(false, 'ring-client-api could not be loaded');
+          this.report(false, 'ring-client-api could not be loaded');
           return;
         }
         // Its own chatter goes to the debug log; its errors are worth seeing.
@@ -198,7 +200,7 @@ export class RingAlarmSource implements AlarmSource {
       this.failures++;
       const delay = Math.min(this.timings.retryMaxMs, this.timings.retryMinMs * 2 ** (this.failures - 1));
       log.debug(`Ring connection attempt ${this.failures} failed: ${errorMessage(error)}; retrying in ${Math.round(delay / 1000)}s`);
-      this.handlers?.onConnection(false, errorMessage(error));
+      this.report(false, errorMessage(error));
       this.teardown();
       this.retryTimer = setTimeout(() => void this.connect(), delay);
     }
@@ -259,7 +261,7 @@ export class RingAlarmSource implements AlarmSource {
 
   private connectionChanged(): void {
     const up = this.connected.size > 0 && [...this.connected.values()].every(Boolean);
-    this.handlers?.onConnection(up, up ? undefined : 'realtime connection lost; ring-client-api is reconnecting');
+    this.report(up, 'realtime connection lost; ring-client-api is reconnecting');
     if (up) {
       clearTimeout(this.stuckTimer as NodeJS.Timeout);
       this.stuckTimer = undefined;
@@ -271,6 +273,15 @@ export class RingAlarmSource implements AlarmSource {
         void this.connect();
       }, this.timings.stuckDisconnectedMs);
     }
+  }
+
+  /** Tells the handlers when the connection goes up or down (not on every check). */
+  private report(connected: boolean, detail: string): void {
+    if (connected === this.reported) {
+      return;
+    }
+    this.reported = connected;
+    this.handlers?.onConnection(connected, connected ? undefined : detail);
   }
 
   private teardown(): void {
