@@ -1,0 +1,88 @@
+{
+  "pluginAlias": "RingAlarmSonosAnnouncer",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "When your Ring Alarm goes off, your Sonos speakers announce it out loud, over and over until the alarm is cleared, then go back to what they were playing.\n\nThis adds to Ring's own siren and monitoring; it doesn't replace them. [Setup details](https://github.com/guilhermechapiewski/homebridge-ring-alarm-911-sonos-annunciator#readme).",
+  "footerDisplay": "Use the \"Test Alarm Announcement\" switch in Apple Home to check that your speakers can be heard. Ring rotates the refresh token; the plugin keeps the latest one itself, so you only paste a new one if it loses access.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Ring Alarm Sonos Announcer",
+        "required": true,
+        "description": "Name shown in the Homebridge logs."
+      },
+      "refreshToken": {
+        "title": "Ring refresh token",
+        "type": "string",
+        "required": true,
+        "description": "Run `npx -p ring-client-api ring-auth-cli` on any computer with Node.js 20+ (see the README). Use a token made just for this plugin, not homebridge-ring's."
+      },
+      "rooms": {
+        "title": "Sonos rooms",
+        "type": "array",
+        "description": "Rooms to announce in, named as in the Sonos app. Leave empty to use every room.",
+        "items": {
+          "title": "Room",
+          "type": "string",
+          "placeholder": "Living Room"
+        }
+      },
+      "volume": {
+        "title": "Announcement volume",
+        "type": "integer",
+        "default": 70,
+        "minimum": 1,
+        "maximum": 100,
+        "description": "Volume (1-100) while announcing. Each speaker goes back to its own volume afterwards."
+      },
+      "repeatIntervalSeconds": {
+        "title": "Repeat every (seconds)",
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "description": "Time from the start of one announcement to the start of the next."
+      },
+      "maxAnnounceMinutes": {
+        "title": "Stop after (minutes)",
+        "type": "integer",
+        "default": 15,
+        "minimum": 1,
+        "description": "Announcements stop after this long even if the alarm is still active in Ring."
+      },
+      "audioPort": {
+        "title": "Clip server port",
+        "type": "integer",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 65535,
+        "description": "The speakers fetch the announcement from this Homebridge machine. 0 picks a free port; set one if a firewall needs it fixed."
+      }
+    }
+  },
+  "layout": [
+    "name",
+    "refreshToken",
+    {
+      "key": "rooms",
+      "type": "array",
+      "buttonText": "Add room",
+      "items": [
+        "rooms[]"
+      ]
+    },
+    "volume",
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "items": [
+        "repeatIntervalSeconds",
+        "maxAnnounceMinutes",
+        "audioPort"
+      ]
+    }
+  ]
+}
