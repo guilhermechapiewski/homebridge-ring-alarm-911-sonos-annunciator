@@ -14,7 +14,8 @@ In Apple Home it shows one accessory, "Alarm Announcer", with two switches: **Al
 
 - **Quality bar:** senior-level, robust code with tests. Verify everything (lint, unit tests, e2e once it exists, plus a real-device check when the change touches Ring or Sonos behavior) **before** asking for a review. Report what could not be verified.
 - **Commits:** commit verified, green states **directly to `main`** after each chunk of work, with messages explaining what changed and why. No feature branches for now.
-- **Ask first** before anything outward-facing: `git push`, `npm publish`, or anything else that leaves this machine. Also ask before:
+- **Pushing:** push `main` to GitHub at regular checkpoints (verified, green states). The repo is public, so history is permanent: never force-push or rewrite pushed commits.
+- **Ask first** before anything else outward-facing: `npm publish`, or anything else that leaves this machine. Also ask before:
   - **playing anything on real Sonos speakers** on the development network (people live there; a surprise alarm announcement is alarming). Read-only queries (discovery, topology, current track) are fine.
   - **sending any command to Ring** other than reading state. Never arm, disarm, sound or silence the siren, or trigger anything that could dispatch the monitoring center.
 - **Never commit secrets.** The Ring refresh token is passed via the `RING_REFRESH_TOKEN` env var for scripts, never written into the repo. Don't log tokens (not even partially), and don't log Ring account details (email, location address, device serials).
