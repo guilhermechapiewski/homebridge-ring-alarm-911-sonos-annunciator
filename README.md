@@ -2,7 +2,7 @@
 
 When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud ("Alarm triggered. Check the house and the Ring app."), repeating until the alarm is cleared, then go back to whatever they were playing. Runs on Homebridge or HOOBS.
 
-> **Work in progress.** Both sides are built and unit-tested, but haven't been tried together against a real alarm yet.
+> **Early release.** Tested against a real Ring account and real Sonos speakers (announcing, groups, restoring music), and end to end in Homebridge 1.3 to 2.5. A real alarm going off hasn't triggered it in the wild yet, so after installing, use the **Test Alarm Announcement** switch and check the log (see [After installing](#after-installing)).
 
 > This adds to Ring's own siren and professional monitoring; it doesn't replace them. It relies on Ring's unofficial API, which can change without notice.
 
@@ -21,6 +21,18 @@ When your **Ring Alarm** goes off, your **Sonos** speakers announce it out loud 
 - Node.js **20.18.1 or newer** (ring-client-api needs it)
 - A Ring Alarm (base station) on your Ring account
 - Sonos speakers on the **same network** as Homebridge
+
+## Installation
+
+Search for **Ring Alarm Sonos Announcer** in the Homebridge UI (or the HOOBS plugin store) and install it, or run:
+
+```bash
+npm install -g homebridge-ring-alarm-911-sonos-annunciator
+```
+
+Running it as a **child bridge** is recommended (Homebridge UI: the plugin's settings > Bridge Settings). Its Ring library is fairly large and logs on its own, and a child bridge keeps that apart from your other plugins.
+
+Older HOOBS boxes run Node.js 14 or 16 and can't run this plugin; check with `node -v`.
 
 ## Configuration
 
@@ -59,6 +71,19 @@ It asks for your Ring email, password and the 2FA code, then prints a refresh to
 The plugin only reads the alarm state. It never arms, disarms or sounds anything.
 
 To check the token and see your alarm locations' names without Homebridge, clone this repo and run `npm install && npm run build && node scripts/ring-cli.js`.
+
+### After installing
+
+1. Restart Homebridge and open its log. You should see `Watching the Ring Alarm at "<your location>"`, `Connected to Ring` and `Sonos rooms found: ...`.
+2. If your Ring account has several locations with an alarm, the log lists them and asks you to set `locations`. Do that and restart.
+3. In Apple Home, turn on **Test Alarm Announcement**. Your speakers should say "This is a test of the alarm announcer. No alarm is active." and go back to what they were playing. The switch turns itself off.
+
+### Troubleshooting
+
+- **No Sonos rooms found:** the plugin searches the local network (SSDP). In Docker or with speakers on another VLAN that may not get through; list one speaker's IP address in `speakerAddresses`.
+- **"The speaker didn't play the announcement":** the speakers fetch the clips from Homebridge over HTTP. A firewall on the Homebridge machine may be blocking them; set a fixed `audioPort` and allow it.
+- **Ring login fails:** generate a new token with `ring-auth-cli` (and don't share it with homebridge-ring).
+- **Stack traces mentioning `ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY`:** these come from the push-notification library ring-client-api uses for camera events. They don't affect alarm announcements.
 
 ### What happens to your music
 
